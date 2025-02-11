@@ -3,7 +3,7 @@ DEBUG:	equ 1
 	include "inc/aypsg.inc"
 	
 	org $7000
-	include "soundspeech.asm"
+	include "soundspeechcard.asm"
 start:
 	include "base.asm"
 	end start

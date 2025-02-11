@@ -1,6 +1,6 @@
-TGTS=europe.bin sayhello.bin scales12.bin scalessc.bin scalessr.bin	\
-	scaletst.bin testnull.bin tests12.bin testssc.bin testssr.bin
-BASS=demo.bas scales12.bas scalessc.bas scalessr.bas
+TGTS=europe.bin sayhello.bin scales12.bin scalessc.bin scalessf.bin	\
+	scaletst.bin testnull.bin tests12.bin testssc.bin testssf.bin
+BASS=demo.bas scales12.bas scalessc.bas scalessf.bas
 INCS=inc/coco.inc inc/aypsg.inc
 
 %.bin: %.asm
@@ -27,23 +27,11 @@ PSG.DSK:
 testnull.bin: testnull.asm $(INCS) null.asm
 tests12.bin: tests12.asm $(INCS) s12.asm
 testssc.bin: testssc.asm $(INCS) ssc.asm
-testssr.bin: testssr.asm $(INCS) ssr.asm
+testssf.bin: testssf.asm $(INCS) ssf.asm
 scales12.bin: scales12.asm $(INCS) symphony12.asm base.asm
-scalessc.bin: scalessc.asm $(INCS) soundspeech.asm base.asm
-scalessr.bin: scalessr.asm $(INCS) supersprite.asm base.asm
+scalessc.bin: scalessc.asm $(INCS) soundspeechcard.asm base.asm
+scalessf.bin: scalessf.asm $(INCS) superspritefm.asm base.asm
 scaletst.bin: scaletst.asm $(INCS) screen.asm base.asm
-
-test: scaletst.bin
-	xroar -machine coco3 $<
-
-ssc: scalessc.bin
-	xroar -machine coco3 $<
-
-ssr: scalessr.bin
-	xroar -machine coco3 $<
-
-s12: scales12.bin
-	xroar -machine coco3 $<
 
 .PHONY: all bins clean distclean disk test
 
