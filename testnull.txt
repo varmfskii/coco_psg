@@ -1,0 +1,287 @@
+                      (     testnull.asm):00001                 include "inc/coco.inc"
+                      (     inc/coco.inc):00001                 ifndef coco_inc
+     0001             (     inc/coco.inc):00002         coco_inc: equ 1
+     010C             (     inc/coco.inc):00003         irqvec: equ $010c
+     0400             (     inc/coco.inc):00004         screen: equ $0400
+     FF00             (     inc/coco.inc):00005         pia0:   equ $ff00
+     FF20             (     inc/coco.inc):00006         pia1:   equ $ff20
+     FF7F             (     inc/coco.inc):00007         mpi:    equ $ff7f
+                      (     inc/coco.inc):00008         
+0000                  (     inc/coco.inc):00009         cart_snd macro
+                      (     inc/coco.inc):00010                 ;; sound mux to cart
+                      (     inc/coco.inc):00011                 lda pia0+1
+                      (     inc/coco.inc):00012                 anda #%11110111
+                      (     inc/coco.inc):00013                 sta pia0+1
+                      (     inc/coco.inc):00014                 lda pia0+3
+                      (     inc/coco.inc):00015                 ora #%00001000
+                      (     inc/coco.inc):00016                 sta pia0+3
+                      (     inc/coco.inc):00017                 ;; enable sound
+                      (     inc/coco.inc):00018                 lda pia1+3
+                      (     inc/coco.inc):00019                 ora #%00001000
+                      (     inc/coco.inc):00020                 sta pia1+3
+                      (     inc/coco.inc):00021                 endm
+                      (     inc/coco.inc):00022                 endif
+                      (     testnull.asm):00002                 include "inc/aypsg.inc"
+                      (    inc/aypsg.inc):00001                 ifndef aypsg_inc
+     0001             (    inc/aypsg.inc):00002         ay_psg_inc:  equ 1
+     0000             (    inc/aypsg.inc):00003         ay_a_fine:   equ 0
+     0001             (    inc/aypsg.inc):00004         ay_a_coarse: equ 1
+     0002             (    inc/aypsg.inc):00005         ay_b_fine:   equ 2
+     0003             (    inc/aypsg.inc):00006         ay_b_coarse: equ 3
+     0004             (    inc/aypsg.inc):00007         ay_c_fine:   equ 4
+     0005             (    inc/aypsg.inc):00008         ay_c_coarse: equ 5
+     0006             (    inc/aypsg.inc):00009         ay_noise:    equ 6
+     0007             (    inc/aypsg.inc):00010         ay_enable:   equ 7
+     0008             (    inc/aypsg.inc):00011         ay_a_amp:    equ 8
+     0009             (    inc/aypsg.inc):00012         ay_b_amp:    equ 9
+     000A             (    inc/aypsg.inc):00013         ay_c_amp:    equ 10
+     000B             (    inc/aypsg.inc):00014         ay_e_fine:   equ 11
+     000C             (    inc/aypsg.inc):00015         ay_e_coarse: equ 12
+     000D             (    inc/aypsg.inc):00016         ay_e_shape:  equ 13
+                      (    inc/aypsg.inc):00017                 endif
+                      (     testnull.asm):00003         
+                      (     testnull.asm):00004                 org $7000
+                      (     testnull.asm):00005                 include "null.asm"
+7000                  (         null.asm):00001         null_init:
+7000 8E713D           (         null.asm):00002                 ldx #voice0
+7003 860D             (         null.asm):00003                 lda #13
+7005 5F               (         null.asm):00004                 clrb
+7006                  (         null.asm):00005         loop@:
+7006 8D0B             (         null.asm):00006                 bsr null_ctl
+7008 4A               (         null.asm):00007                 deca
+7009 2AFB             (         null.asm):00008                 bpl loop@
+700B 8607             (         null.asm):00009                 lda #ay_enable
+700D C638             (         null.asm):00010                 ldb #%00111000
+700F 8D02             (         null.asm):00011                 bsr null_ctl
+7011 39               (         null.asm):00012                 rts
+                      (         null.asm):00013         
+7012                  (         null.asm):00014         null_term:      
+7012 39               (         null.asm):00015                 rts
+                      (         null.asm):00016         
+7013                  (         null.asm):00017         null_ctl:       
+7013 3420             (         null.asm):00018                 pshs y
+7015 10AE890002       (         null.asm):00019                 ldy scn,x
+701A E7A6             (         null.asm):00020                 stb a,y
+701C 35A0             (         null.asm):00021                 puls y,pc
+701E                  (     testnull.asm):00006         start:
+701E 8660             (     testnull.asm):00007                 lda #$60
+7020 8E0400           (     testnull.asm):00008                 ldx #screen
+7023                  (     testnull.asm):00009         cls:
+7023 A780             (     testnull.asm):00010                 sta ,x+
+7025 8C0600           (     testnull.asm):00011                 cmpx #screen+$200
+7028 26F9             (     testnull.asm):00012                 bne cls
+                      (     testnull.asm):00013         
+                      (     testnull.asm):00014         ;;; initialize ay
+702A 17FFD3           (     testnull.asm):00015                 lbsr null_init
+                      (     testnull.asm):00016         
+                      (     testnull.asm):00017         ;;; init voices
+702D 8601             (     testnull.asm):00018                 lda #1
+702F B77137           (     testnull.asm):00019                 sta notdone
+7032 8E713D           (     testnull.asm):00020                 ldx #voices
+7035 108E7164         (     testnull.asm):00021                 ldy #scores
+7039                  (     testnull.asm):00022         loop@:
+7039 ECA1             (     testnull.asm):00023                 ldd ,y++
+703B ED890009         (     testnull.asm):00024                 std scr,x
+703F 8601             (     testnull.asm):00025                 lda #1
+7041 A789000B         (     testnull.asm):00026                 sta cpl,x
+7045 A7890007         (     testnull.asm):00027                 sta dly,x
+7049 3089000D         (     testnull.asm):00028                 leax siz,x
+704D 8C7164           (     testnull.asm):00029                 cmpx #voiceend
+7050 26E7             (     testnull.asm):00030                 bne loop@
+                      (     testnull.asm):00031                 
+                      (     testnull.asm):00032         ;;; setup irq routine
+7052 1A50             (     testnull.asm):00033                 orcc #$50               ; disable interrupts
+7054 B6FF01           (     testnull.asm):00034                 lda pia0+1
+7057 B7713B           (     testnull.asm):00035                 sta old+3
+705A 84FE             (     testnull.asm):00036                 anda #$fe
+705C B7FF01           (     testnull.asm):00037                 sta pia0+1
+705F B6FF03           (     testnull.asm):00038                 lda pia0+3
+7062 B7713C           (     testnull.asm):00039                 sta old+4
+7065 8A01             (     testnull.asm):00040                 ora #$01
+7067 B7FF03           (     testnull.asm):00041                 sta pia0+3
+706A B6010C           (     testnull.asm):00042                 lda irqvec
+706D B77138           (     testnull.asm):00043                 sta old
+7070 867E             (     testnull.asm):00044                 lda #$7e
+7072 B7010C           (     testnull.asm):00045                 sta irqvec
+7075 BE010D           (     testnull.asm):00046                 ldx irqvec+1
+7078 BF7139           (     testnull.asm):00047                 stx old+1
+707B 8E70C3           (     testnull.asm):00048                 ldx #interrupt
+707E BF010D           (     testnull.asm):00049                 stx irqvec+1
+7081 1CEF             (     testnull.asm):00050                 andcc #$ef              ; enable interrupts
+                      (     testnull.asm):00051         
+                      (     testnull.asm):00052         ;;; main program
+7083 4F               (     testnull.asm):00053                 clra
+7084                  (     testnull.asm):00054         mainlp: 
+7084 4C               (     testnull.asm):00055                 inca
+                      (     testnull.asm):00056         
+                      (     testnull.asm):00057                 ;; top line
+7085 8E0400           (     testnull.asm):00058                 ldx #screen
+7088                  (     testnull.asm):00059         l@:     
+7088 A780             (     testnull.asm):00060                 sta ,x+
+708A 8C0420           (     testnull.asm):00061                 cmpx #screen+32
+708D 26F9             (     testnull.asm):00062                 bne l@
+                      (     testnull.asm):00063         
+                      (     testnull.asm):00064                 ;; right size
+708F 8E043F           (     testnull.asm):00065                 ldx #screen+32+31
+7092                  (     testnull.asm):00066         l@:
+7092 A784             (     testnull.asm):00067                 sta ,x
+7094 308820           (     testnull.asm):00068                 leax 32,x
+7097 8C0600           (     testnull.asm):00069                 cmpx #screen+$200
+709A 2DF6             (     testnull.asm):00070                 blt l@
+                      (     testnull.asm):00071         
+                      (     testnull.asm):00072                 ;; bottom line
+709C 8E05FF           (     testnull.asm):00073                 ldx #screen+32*15+31
+709F                  (     testnull.asm):00074         l@:
+709F A782             (     testnull.asm):00075                 sta ,-x
+70A1 8C05E0           (     testnull.asm):00076                 cmpx #screen+$1e0
+70A4 26F9             (     testnull.asm):00077                 bne l@
+                      (     testnull.asm):00078         
+                      (     testnull.asm):00079                 ;; left side
+70A6 8E05C0           (     testnull.asm):00080                 ldx #screen+14*32
+70A9                  (     testnull.asm):00081         l@:
+70A9 A784             (     testnull.asm):00082                 sta ,x
+70AB 3088E0           (     testnull.asm):00083                 leax -32,x
+70AE 8C0400           (     testnull.asm):00084                 cmpx #screen
+70B1 26F6             (     testnull.asm):00085                 bne l@
+                      (     testnull.asm):00086         
+                      (     testnull.asm):00087                 ;; delay
+70B3 8E0800           (     testnull.asm):00088                 ldx #2048
+70B6                  (     testnull.asm):00089         l@:
+70B6 301F             (     testnull.asm):00090                 leax -1,x
+70B8 26FC             (     testnull.asm):00091                 bne l@
+                      (     testnull.asm):00092         
+                      (     testnull.asm):00093                 ;; check if music is finished
+70BA F67137           (     testnull.asm):00094                 ldb notdone
+70BD 26C5             (     testnull.asm):00095                 bne mainlp
+70BF 17FF50           (     testnull.asm):00096                 lbsr null_term
+70C2 39               (     testnull.asm):00097                 rts
+                      (     testnull.asm):00098         
+     000D             (     testnull.asm):00099         siz:    equ 13
+     0002             (     testnull.asm):00100         scn:    equ 2
+     0004             (     testnull.asm):00101         crs:    equ 4
+     0005             (     testnull.asm):00102         fin:    equ 5
+     0006             (     testnull.asm):00103         amp:    equ 6
+     0007             (     testnull.asm):00104         dly:    equ 7
+     0008             (     testnull.asm):00105         srg:    equ 8
+     0009             (     testnull.asm):00106         scr:    equ 9
+     000B             (     testnull.asm):00107         cpl:    equ 11
+     000C             (     testnull.asm):00108         sdt:    equ 12
+                      (     testnull.asm):00109         
+70C3                  (     testnull.asm):00110         interrupt:
+70C3 B6FF02           (     testnull.asm):00111                 lda pia0+2              ; ack interrupt
+                      (     testnull.asm):00112                 ;; switch screen color
+70C6 B6FF22           (     testnull.asm):00113                 lda pia1+2
+70C9 8808             (     testnull.asm):00114                 eora #$08
+70CB B7FF22           (     testnull.asm):00115                 sta pia1+2
+                      (     testnull.asm):00116         
+70CE 7F7137           (     testnull.asm):00117                 clr notdone
+70D1 8E713D           (     testnull.asm):00118                 ldx #voices
+70D4                  (     testnull.asm):00119         loop@:
+70D4 6A07             (     testnull.asm):00120                 dec dly,x
+70D6 2730             (     testnull.asm):00121                 beq next@               ; new note
+70D8                  (     testnull.asm):00122         continue:       
+70D8 7C7137           (     testnull.asm):00123                 inc notdone
+70DB                  (     testnull.asm):00124         next_voice:     
+70DB 300D             (     testnull.asm):00125                 leax siz,x
+70DD 8C7164           (     testnull.asm):00126                 cmpx #voiceend
+70E0 26F2             (     testnull.asm):00127                 bne loop@
+70E2 B67137           (     testnull.asm):00128                 lda notdone
+70E5 2618             (     testnull.asm):00129                 bne skip
+                      (     testnull.asm):00130                 ;; tear down interrupt
+70E7 B67138           (     testnull.asm):00131                 lda old
+70EA B7010C           (     testnull.asm):00132                 sta irqvec
+70ED FC7139           (     testnull.asm):00133                 ldd old+1
+70F0 FD010D           (     testnull.asm):00134                 std irqvec+1
+70F3 B6713B           (     testnull.asm):00135                 lda old+3
+70F6 B7FF01           (     testnull.asm):00136                 sta pia0+1
+70F9 B6713C           (     testnull.asm):00137                 lda old+4
+70FC B7FF03           (     testnull.asm):00138                 sta pia0+3
+70FF                  (     testnull.asm):00139         skip:
+                      (     testnull.asm):00140                 ;; switch screen color
+70FF B6FF22           (     testnull.asm):00141                 lda pia1+2
+7102 8808             (     testnull.asm):00142                 eora #$08
+7104 B7FF22           (     testnull.asm):00143                 sta pia1+2
+7107 3B               (     testnull.asm):00144                 rti
+                      (     testnull.asm):00145                 ;; next note
+7108                  (     testnull.asm):00146         next@:
+7108 10AE09           (     testnull.asm):00147                 ldy scr,x
+710B A6A0             (     testnull.asm):00148                 lda ,y+
+710D 2719             (     testnull.asm):00149                 beq done@               ; no more notes
+710F A707             (     testnull.asm):00150                 sta dly,x
+7111 A606             (     testnull.asm):00151                 lda amp,x               ; set volume
+7113 E6A0             (     testnull.asm):00152                 ldb ,y+
+7115 AD94             (     testnull.asm):00153                 jsr [,x]
+7117 A604             (     testnull.asm):00154                 lda crs,x               ; set coarse tone
+7119 E6A0             (     testnull.asm):00155                 ldb ,y+
+711B AD94             (     testnull.asm):00156                 jsr [,x]
+711D A605             (     testnull.asm):00157                 lda fin,x               ; set fine tone
+711F E6A0             (     testnull.asm):00158                 ldb ,y+
+7121 AD94             (     testnull.asm):00159                 jsr [,x]
+7123 10AF09           (     testnull.asm):00160                 sty scr,x
+7126 20B0             (     testnull.asm):00161                 bra continue
+                      (     testnull.asm):00162                 ;; no more notes
+7128                  (     testnull.asm):00163         done@:
+7128 5F               (     testnull.asm):00164                 clrb
+7129 A604             (     testnull.asm):00165                 lda crs,x
+712B AD94             (     testnull.asm):00166                 jsr [,x]
+712D A605             (     testnull.asm):00167                 lda fin,x
+712F AD94             (     testnull.asm):00168                 jsr [,x]
+7131 A606             (     testnull.asm):00169                 lda amp,x
+7133 AD94             (     testnull.asm):00170                 jsr [,x]
+7135 20A4             (     testnull.asm):00171                 bra next_voice
+                      (     testnull.asm):00172         
+7137                  (     testnull.asm):00173         notdone:
+7137                  (     testnull.asm):00174                 rmb 1
+7138                  (     testnull.asm):00175         old:    rmb 5
+                      (     testnull.asm):00176         
+713D                  (     testnull.asm):00177         voices:
+713D                  (     testnull.asm):00178         voice0:
+713D 7013             (     testnull.asm):00179                 fdb null_ctl            ; routine
+713F 0449             (     testnull.asm):00180                 fdb screen+32*2+9
+7141 01               (     testnull.asm):00181                 fcb ay_a_coarse         ; tone coarse
+7142 00               (     testnull.asm):00182                 fcb ay_a_fine           ; tone fine
+7143 08               (     testnull.asm):00183                 fcb ay_a_amp            ; voice amplitude
+7144                  (     testnull.asm):00184                 rmb 6
+714A                  (     testnull.asm):00185         voice1:
+714A 7013             (     testnull.asm):00186                 fdb null_ctl            ; routine
+714C 0449             (     testnull.asm):00187                 fdb screen+32*2+9
+714E 03               (     testnull.asm):00188                 fcb ay_b_coarse         ; tone coarse
+714F 02               (     testnull.asm):00189                 fcb ay_b_fine           ; tone fine
+7150 09               (     testnull.asm):00190                 fcb ay_b_amp            ; voice amplitude
+7151                  (     testnull.asm):00191                 rmb 6
+7157                  (     testnull.asm):00192         voice2:
+7157 7013             (     testnull.asm):00193                 fdb null_ctl            ; routine
+7159 0449             (     testnull.asm):00194                 fdb screen+32*2+9
+715B 05               (     testnull.asm):00195                 fcb ay_c_coarse         ; tone coarse
+715C 04               (     testnull.asm):00196                 fcb ay_c_fine           ; tone fine
+715D 0A               (     testnull.asm):00197                 fcb ay_c_amp            ; voice amplitude
+715E                  (     testnull.asm):00198                 rmb 6
+7164                  (     testnull.asm):00199         voiceend:       
+                      (     testnull.asm):00200         
+7164                  (     testnull.asm):00201         scores:
+7164 716A             (     testnull.asm):00202                 fdb score0
+7166 718E             (     testnull.asm):00203                 fdb score1
+7168 71A2             (     testnull.asm):00204                 fdb score2
+                      (     testnull.asm):00205                 
+716A                  (     testnull.asm):00206         score0:
+716A 30000000         (     testnull.asm):00207                 fdb $3000,0
+716E 300901AC         (     testnull.asm):00208                 fdb $3009,428
+7172 30000000         (     testnull.asm):00209                 fdb $3000,0
+7176 300901AC         (     testnull.asm):00210                 fdb $3009,428
+717A 30000000         (     testnull.asm):00211                 fdb $3000,0
+717E 300901AC         (     testnull.asm):00212                 fdb $3009,428
+7182 30000000         (     testnull.asm):00213                 fdb $3000,0
+7186 300901AC         (     testnull.asm):00214                 fdb $3009,428
+718A 00000000         (     testnull.asm):00215                 fdb 0,0
+718E                  (     testnull.asm):00216         score1:
+718E 60000000         (     testnull.asm):00217                 fdb $6000,0
+7192 60090153         (     testnull.asm):00218                 fdb $6009,339
+7196 60000000         (     testnull.asm):00219                 fdb $6000,0
+719A 60090153         (     testnull.asm):00220                 fdb $6009,339
+719E 00000000         (     testnull.asm):00221                 fdb 0,0
+71A2                  (     testnull.asm):00222         score2:
+71A2 C0000000         (     testnull.asm):00223                 fdb $c000,0
+71A6 C009011D         (     testnull.asm):00224                 fdb $c009,285
+71AA 00000000         (     testnull.asm):00225                 fdb 0,0
+                      (     testnull.asm):00226         
+                      (     testnull.asm):00227                 end start

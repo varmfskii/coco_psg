@@ -1,0 +1,343 @@
+                      (      testssc.asm):00001                 include "inc/coco.inc"
+                      (     inc/coco.inc):00001                 ifndef coco_inc
+     0001             (     inc/coco.inc):00002         coco_inc: equ 1
+     010C             (     inc/coco.inc):00003         irqvec: equ $010c
+     0400             (     inc/coco.inc):00004         screen: equ $0400
+     FF00             (     inc/coco.inc):00005         pia0:   equ $ff00
+     FF20             (     inc/coco.inc):00006         pia1:   equ $ff20
+     FF7F             (     inc/coco.inc):00007         mpi:    equ $ff7f
+                      (     inc/coco.inc):00008         
+0000                  (     inc/coco.inc):00009         cart_snd macro
+                      (     inc/coco.inc):00010                 ;; sound mux to cart
+                      (     inc/coco.inc):00011                 lda pia0+1
+                      (     inc/coco.inc):00012                 anda #%11110111
+                      (     inc/coco.inc):00013                 sta pia0+1
+                      (     inc/coco.inc):00014                 lda pia0+3
+                      (     inc/coco.inc):00015                 ora #%00001000
+                      (     inc/coco.inc):00016                 sta pia0+3
+                      (     inc/coco.inc):00017                 ;; enable sound
+                      (     inc/coco.inc):00018                 lda pia1+3
+                      (     inc/coco.inc):00019                 ora #%00001000
+                      (     inc/coco.inc):00020                 sta pia1+3
+                      (     inc/coco.inc):00021                 endm
+                      (     inc/coco.inc):00022                 endif
+                      (      testssc.asm):00002                 include "inc/aypsg.inc"
+                      (    inc/aypsg.inc):00001                 ifndef aypsg_inc
+     0001             (    inc/aypsg.inc):00002         ay_psg_inc:  equ 1
+     0000             (    inc/aypsg.inc):00003         ay_a_fine:   equ 0
+     0001             (    inc/aypsg.inc):00004         ay_a_coarse: equ 1
+     0002             (    inc/aypsg.inc):00005         ay_b_fine:   equ 2
+     0003             (    inc/aypsg.inc):00006         ay_b_coarse: equ 3
+     0004             (    inc/aypsg.inc):00007         ay_c_fine:   equ 4
+     0005             (    inc/aypsg.inc):00008         ay_c_coarse: equ 5
+     0006             (    inc/aypsg.inc):00009         ay_noise:    equ 6
+     0007             (    inc/aypsg.inc):00010         ay_enable:   equ 7
+     0008             (    inc/aypsg.inc):00011         ay_a_amp:    equ 8
+     0009             (    inc/aypsg.inc):00012         ay_b_amp:    equ 9
+     000A             (    inc/aypsg.inc):00013         ay_c_amp:    equ 10
+     000B             (    inc/aypsg.inc):00014         ay_e_fine:   equ 11
+     000C             (    inc/aypsg.inc):00015         ay_e_coarse: equ 12
+     000D             (    inc/aypsg.inc):00016         ay_e_shape:  equ 13
+                      (    inc/aypsg.inc):00017                 endif
+                      (      testssc.asm):00003         
+                      (      testssc.asm):00004                 org $7000
+                      (      testssc.asm):00005                 include "ssc.asm"
+     FF7D             (          ssc.asm):00001         ssc_rst equ $ff7d
+     FF7E             (          ssc.asm):00002         ssc_dat equ $ff7e
+                      (          ssc.asm):00003         
+7000                  (          ssc.asm):00004         ssc_pre macro
+                      (          ssc.asm):00005                 lbsr ssc_busy
+                      (          ssc.asm):00006                 lda #$af
+                      (          ssc.asm):00007                 sta ssc_dat
+                      (          ssc.asm):00008                 endm
+                      (          ssc.asm):00009                 
+7000                  (          ssc.asm):00010         ssc_post macro
+                      (          ssc.asm):00011                 lbsr ssc_busy
+                      (          ssc.asm):00012                 lda #$ff
+                      (          ssc.asm):00013                 sta ssc_dat
+                      (          ssc.asm):00014                 endm
+                      (          ssc.asm):00015                 
+7000                  (          ssc.asm):00016         ssc_init:
+                      (          ssc.asm):00017                 ;; sound mux to cart
+7000 B6FF01           (          ssc.asm):00018                 lda pia0+1
+7003 84F7             (          ssc.asm):00019                 anda #%11110111
+7005 B7FF01           (          ssc.asm):00020                 sta pia0+1
+7008 B6FF03           (          ssc.asm):00021                 lda pia0+3
+700B 8A08             (          ssc.asm):00022                 ora #%00001000
+700D B7FF03           (          ssc.asm):00023                 sta pia0+3
+                      (          ssc.asm):00024                 ;; enable sound
+7010 B6FF23           (          ssc.asm):00025                 lda pia1+3
+7013 8A08             (          ssc.asm):00026                 ora #%00001000
+7015 B7FF23           (          ssc.asm):00027                 sta pia1+3
+7018 8D1A             (          ssc.asm):00028                 bsr ssc_reset
+                      (          ssc.asm):00029                 ssc_pre
+701A 170020           (          ssc_pre):00001                 lbsr ssc_busy
+701D 86AF             (          ssc_pre):00002                 lda #$af
+701F B7FF7E           (          ssc_pre):00003                 sta ssc_dat
+7022 8E7181           (          ssc.asm):00030                 ldx #voice0
+7025 860D             (          ssc.asm):00031                 lda #13
+7027 5F               (          ssc.asm):00032                 clrb
+7028                  (          ssc.asm):00033         loop@:
+7028 8D21             (          ssc.asm):00034                 bsr ssc_ctl
+702A 4A               (          ssc.asm):00035                 deca
+702B 2AFB             (          ssc.asm):00036                 bpl loop@
+702D 8607             (          ssc.asm):00037                 lda #ay_enable
+702F C638             (          ssc.asm):00038                 ldb #%00111000
+7031 8D18             (          ssc.asm):00039                 bsr ssc_ctl
+7033 39               (          ssc.asm):00040                 rts
+                      (          ssc.asm):00041         
+7034                  (          ssc.asm):00042         ssc_term:       
+7034                  (          ssc.asm):00043         ssc_reset:      
+7034 8601             (          ssc.asm):00044                 lda #1
+7036 B7FF7D           (          ssc.asm):00045                 sta ssc_rst
+7039 7FFF7D           (          ssc.asm):00046                 clr ssc_rst
+703C 39               (          ssc.asm):00047                 rts
+                      (          ssc.asm):00048         
+703D                  (          ssc.asm):00049         ssc_busy:
+703D 3402             (          ssc.asm):00050                 pshs a
+                      (          ssc.asm):00051         
+703F                  (          ssc.asm):00052         loop@:
+703F B6FF7E           (          ssc.asm):00053                 lda ssc_dat
+7042 2AFB             (          ssc.asm):00054                 bpl loop@
+                      (          ssc.asm):00055         
+                      (          ssc.asm):00056                 ;; wait an extra bit - 46 should actually work
+7044 8640             (          ssc.asm):00057                 lda #64
+7046                  (          ssc.asm):00058         loop@:
+7046 4A               (          ssc.asm):00059                 deca
+7047 26FD             (          ssc.asm):00060                 bne loop@
+                      (          ssc.asm):00061                 
+7049 3582             (          ssc.asm):00062                 puls a,pc
+                      (          ssc.asm):00063         
+704B                  (          ssc.asm):00064         ssc_ctl:        
+704B 3426             (          ssc.asm):00065                 pshs d,y
+704D 10AE890002       (          ssc.asm):00066                 ldy scn,x
+7052 E7A6             (          ssc.asm):00067                 stb a,y
+7054 8DE7             (          ssc.asm):00068                 bsr ssc_busy
+7056 A6E4             (          ssc.asm):00069                 lda ,s
+7058 B7FF7E           (          ssc.asm):00070                 sta ssc_dat
+705B 8DE0             (          ssc.asm):00071                 bsr ssc_busy
+705D F7FF7E           (          ssc.asm):00072                 stb ssc_dat
+7060 35A6             (          ssc.asm):00073                 puls y,d,pc
+7062                  (      testssc.asm):00006         start:
+7062 8660             (      testssc.asm):00007                 lda #$60
+7064 8E0400           (      testssc.asm):00008                 ldx #screen
+7067                  (      testssc.asm):00009         cls:
+7067 A780             (      testssc.asm):00010                 sta ,x+
+7069 8C0600           (      testssc.asm):00011                 cmpx #screen+$200
+706C 26F9             (      testssc.asm):00012                 bne cls
+                      (      testssc.asm):00013         
+                      (      testssc.asm):00014         ;;; initialize ay
+706E 17FF8F           (      testssc.asm):00015                 lbsr ssc_init
+                      (      testssc.asm):00016         
+                      (      testssc.asm):00017         ;;; init voices
+7071 8601             (      testssc.asm):00018                 lda #1
+7073 B7717B           (      testssc.asm):00019                 sta notdone
+7076 8E7181           (      testssc.asm):00020                 ldx #voices
+7079 108E71A8         (      testssc.asm):00021                 ldy #scores
+707D                  (      testssc.asm):00022         loop@:
+707D ECA1             (      testssc.asm):00023                 ldd ,y++
+707F ED89000A         (      testssc.asm):00024                 std scr,x
+7083 8601             (      testssc.asm):00025                 lda #1
+7085 A789000C         (      testssc.asm):00026                 sta cpl,x
+7089 A7890007         (      testssc.asm):00027                 sta dly,x
+708D 3089000D         (      testssc.asm):00028                 leax siz,x
+7091 8C71A8           (      testssc.asm):00029                 cmpx #voiceend
+7094 26E7             (      testssc.asm):00030                 bne loop@
+                      (      testssc.asm):00031                 
+                      (      testssc.asm):00032         ;;; setup irq routine
+7096 1A50             (      testssc.asm):00033                 orcc #$50               ; disable interrupts
+7098 B6FF01           (      testssc.asm):00034                 lda pia0+1
+709B B7717F           (      testssc.asm):00035                 sta old+3
+709E 84FE             (      testssc.asm):00036                 anda #$fe
+70A0 B7FF01           (      testssc.asm):00037                 sta pia0+1
+70A3 B6FF03           (      testssc.asm):00038                 lda pia0+3
+70A6 B77180           (      testssc.asm):00039                 sta old+4
+70A9 8A01             (      testssc.asm):00040                 ora #$01
+70AB B7FF03           (      testssc.asm):00041                 sta pia0+3
+70AE B6010C           (      testssc.asm):00042                 lda irqvec
+70B1 B7717C           (      testssc.asm):00043                 sta old
+70B4 867E             (      testssc.asm):00044                 lda #$7e
+70B6 B7010C           (      testssc.asm):00045                 sta irqvec
+70B9 BE010D           (      testssc.asm):00046                 ldx irqvec+1
+70BC BF717D           (      testssc.asm):00047                 stx old+1
+70BF 8E7107           (      testssc.asm):00048                 ldx #interrupt
+70C2 BF010D           (      testssc.asm):00049                 stx irqvec+1
+70C5 1CEF             (      testssc.asm):00050                 andcc #$ef              ; enable interrupts
+                      (      testssc.asm):00051         
+                      (      testssc.asm):00052         ;;; main program
+70C7 4F               (      testssc.asm):00053                 clra
+70C8                  (      testssc.asm):00054         mainlp: 
+70C8 4C               (      testssc.asm):00055                 inca
+                      (      testssc.asm):00056         
+                      (      testssc.asm):00057                 ;; top line
+70C9 8E0400           (      testssc.asm):00058                 ldx #screen
+70CC                  (      testssc.asm):00059         l@:     
+70CC A780             (      testssc.asm):00060                 sta ,x+
+70CE 8C0420           (      testssc.asm):00061                 cmpx #screen+32
+70D1 26F9             (      testssc.asm):00062                 bne l@
+                      (      testssc.asm):00063         
+                      (      testssc.asm):00064                 ;; right size
+70D3 8E043F           (      testssc.asm):00065                 ldx #screen+32+31
+70D6                  (      testssc.asm):00066         l@:
+70D6 A784             (      testssc.asm):00067                 sta ,x
+70D8 308820           (      testssc.asm):00068                 leax 32,x
+70DB 8C0600           (      testssc.asm):00069                 cmpx #screen+$200
+70DE 2DF6             (      testssc.asm):00070                 blt l@
+                      (      testssc.asm):00071         
+                      (      testssc.asm):00072                 ;; bottom line
+70E0 8E05FF           (      testssc.asm):00073                 ldx #screen+32*15+31
+70E3                  (      testssc.asm):00074         l@:
+70E3 A782             (      testssc.asm):00075                 sta ,-x
+70E5 8C05E0           (      testssc.asm):00076                 cmpx #screen+$1e0
+70E8 26F9             (      testssc.asm):00077                 bne l@
+                      (      testssc.asm):00078         
+                      (      testssc.asm):00079                 ;; left side
+70EA 8E05C0           (      testssc.asm):00080                 ldx #screen+14*32
+70ED                  (      testssc.asm):00081         l@:
+70ED A784             (      testssc.asm):00082                 sta ,x
+70EF 3088E0           (      testssc.asm):00083                 leax -32,x
+70F2 8C0400           (      testssc.asm):00084                 cmpx #screen
+70F5 26F6             (      testssc.asm):00085                 bne l@
+                      (      testssc.asm):00086         
+                      (      testssc.asm):00087                 ;; delay
+70F7 8E0800           (      testssc.asm):00088                 ldx #2048
+70FA                  (      testssc.asm):00089         l@:
+70FA 301F             (      testssc.asm):00090                 leax -1,x
+70FC 26FC             (      testssc.asm):00091                 bne l@
+                      (      testssc.asm):00092         
+                      (      testssc.asm):00093                 ;; check if music is finished
+70FE F6717B           (      testssc.asm):00094                 ldb notdone
+7101 26C5             (      testssc.asm):00095                 bne mainlp
+7103 17FF2E           (      testssc.asm):00096                 lbsr ssc_term
+7106 39               (      testssc.asm):00097                 rts
+                      (      testssc.asm):00098         
+     000D             (      testssc.asm):00099         siz:    equ 13
+     0002             (      testssc.asm):00100         scn:    equ 2
+     0004             (      testssc.asm):00101         crs:    equ 4
+     0005             (      testssc.asm):00102         fin:    equ 5
+     0006             (      testssc.asm):00103         amp:    equ 6
+     0007             (      testssc.asm):00104         dly:    equ 7
+     0008             (      testssc.asm):00105         srg:    equ 8
+     0009             (      testssc.asm):00106         sdt:    equ 9
+     000A             (      testssc.asm):00107         scr:    equ 10
+     000C             (      testssc.asm):00108         cpl:    equ 12
+                      (      testssc.asm):00109         
+7107                  (      testssc.asm):00110         interrupt:
+7107 B6FF02           (      testssc.asm):00111                 lda pia0+2              ; ack interrupt
+                      (      testssc.asm):00112                 ;; switch screen color
+710A B6FF22           (      testssc.asm):00113                 lda pia1+2
+710D 8808             (      testssc.asm):00114                 eora #$08
+710F B7FF22           (      testssc.asm):00115                 sta pia1+2
+                      (      testssc.asm):00116         
+7112 7F717B           (      testssc.asm):00117                 clr notdone
+7115 8E7181           (      testssc.asm):00118                 ldx #voices
+7118                  (      testssc.asm):00119         loop@:
+7118 6A07             (      testssc.asm):00120                 dec dly,x
+711A 2730             (      testssc.asm):00121                 beq next@               ; new note
+711C                  (      testssc.asm):00122         continue:       
+711C 7C717B           (      testssc.asm):00123                 inc notdone
+711F                  (      testssc.asm):00124         next_voice:     
+711F 300D             (      testssc.asm):00125                 leax siz,x
+7121 8C71A8           (      testssc.asm):00126                 cmpx #voiceend
+7124 26F2             (      testssc.asm):00127                 bne loop@
+7126 B6717B           (      testssc.asm):00128                 lda notdone
+7129 2618             (      testssc.asm):00129                 bne skip
+                      (      testssc.asm):00130                 ;; tear down interrupt
+712B B6717C           (      testssc.asm):00131                 lda old
+712E B7010C           (      testssc.asm):00132                 sta irqvec
+7131 FC717D           (      testssc.asm):00133                 ldd old+1
+7134 FD010D           (      testssc.asm):00134                 std irqvec+1
+7137 B6717F           (      testssc.asm):00135                 lda old+3
+713A B7FF01           (      testssc.asm):00136                 sta pia0+1
+713D B67180           (      testssc.asm):00137                 lda old+4
+7140 B7FF03           (      testssc.asm):00138                 sta pia0+3
+7143                  (      testssc.asm):00139         skip:
+                      (      testssc.asm):00140                 ;; switch screen color
+7143 B6FF22           (      testssc.asm):00141                 lda pia1+2
+7146 8808             (      testssc.asm):00142                 eora #$08
+7148 B7FF22           (      testssc.asm):00143                 sta pia1+2
+714B 3B               (      testssc.asm):00144                 rti
+                      (      testssc.asm):00145                 ;; next note
+714C                  (      testssc.asm):00146         next@:
+714C 10AE0A           (      testssc.asm):00147                 ldy scr,x
+714F A6A0             (      testssc.asm):00148                 lda ,y+
+7151 2719             (      testssc.asm):00149                 beq done@               ; no more notes
+7153 A707             (      testssc.asm):00150                 sta dly,x
+7155 A606             (      testssc.asm):00151                 lda amp,x               ; set volume
+7157 E6A0             (      testssc.asm):00152                 ldb ,y+
+7159 AD94             (      testssc.asm):00153                 jsr [,x]
+715B A604             (      testssc.asm):00154                 lda crs,x               ; set coarse tone
+715D E6A0             (      testssc.asm):00155                 ldb ,y+
+715F AD94             (      testssc.asm):00156                 jsr [,x]
+7161 A605             (      testssc.asm):00157                 lda fin,x               ; set fine tone
+7163 E6A0             (      testssc.asm):00158                 ldb ,y+
+7165 AD94             (      testssc.asm):00159                 jsr [,x]
+7167 10AF0A           (      testssc.asm):00160                 sty scr,x
+716A 20B0             (      testssc.asm):00161                 bra continue
+                      (      testssc.asm):00162                 ;; no more notes
+716C                  (      testssc.asm):00163         done@:
+716C 5F               (      testssc.asm):00164                 clrb
+716D A604             (      testssc.asm):00165                 lda crs,x
+716F AD94             (      testssc.asm):00166                 jsr [,x]
+7171 A605             (      testssc.asm):00167                 lda fin,x
+7173 AD94             (      testssc.asm):00168                 jsr [,x]
+7175 A606             (      testssc.asm):00169                 lda amp,x
+7177 AD94             (      testssc.asm):00170                 jsr [,x]
+7179 20A4             (      testssc.asm):00171                 bra next_voice
+                      (      testssc.asm):00172         
+717B                  (      testssc.asm):00173         notdone:
+717B                  (      testssc.asm):00174                 rmb 1
+717C                  (      testssc.asm):00175         old:    rmb 5
+                      (      testssc.asm):00176         
+7181                  (      testssc.asm):00177         voices:
+7181                  (      testssc.asm):00178         voice0:
+7181 704B             (      testssc.asm):00179                 fdb ssc_ctl             ; routine
+7183 0449             (      testssc.asm):00180                 fdb screen+32*2+9
+7185 01               (      testssc.asm):00181                 fcb ay_a_coarse         ; tone coarse
+7186 00               (      testssc.asm):00182                 fcb ay_a_fine           ; tone fine
+7187 08               (      testssc.asm):00183                 fcb ay_a_amp            ; voice amplitude
+7188                  (      testssc.asm):00184                 rmb 6
+718E                  (      testssc.asm):00185         voice1:
+718E 704B             (      testssc.asm):00186                 fdb ssc_ctl             ; routine
+7190 0449             (      testssc.asm):00187                 fdb screen+32*2+9
+7192 03               (      testssc.asm):00188                 fcb ay_b_coarse         ; tone coarse
+7193 02               (      testssc.asm):00189                 fcb ay_b_fine           ; tone fine
+7194 09               (      testssc.asm):00190                 fcb ay_b_amp            ; voice amplitude
+7195                  (      testssc.asm):00191                 rmb 6
+719B                  (      testssc.asm):00192         voice2:
+719B 704B             (      testssc.asm):00193                 fdb ssc_ctl             ; routine
+719D 0449             (      testssc.asm):00194                 fdb screen+32*2+9
+719F 05               (      testssc.asm):00195                 fcb ay_c_coarse         ; tone coarse
+71A0 04               (      testssc.asm):00196                 fcb ay_c_fine           ; tone fine
+71A1 0A               (      testssc.asm):00197                 fcb ay_c_amp            ; voice amplitude
+71A2                  (      testssc.asm):00198                 rmb 6
+71A8                  (      testssc.asm):00199         voiceend:       
+                      (      testssc.asm):00200         
+71A8                  (      testssc.asm):00201         scores:
+71A8 71AE             (      testssc.asm):00202                 fdb score0
+71AA 71C6             (      testssc.asm):00203                 fdb score1
+71AC 71E2             (      testssc.asm):00204                 fdb score2
+                      (      testssc.asm):00205                 
+71AE                  (      testssc.asm):00206         score0:
+71AE 300901AC         (      testssc.asm):00207                 fdb $3009,428
+71B2 60000000         (      testssc.asm):00208                 fdb $6000,0
+71B6 300901AC         (      testssc.asm):00209                 fdb $3009,428
+71BA 30090153         (      testssc.asm):00210                 fdb $3009,339
+71BE 3009011D         (      testssc.asm):00211                 fdb $3009,285
+71C2 00000000         (      testssc.asm):00212                 fdb 0,0
+71C6                  (      testssc.asm):00213         score1:
+71C6 30000000         (      testssc.asm):00214                 fdb $3000,0
+71CA 30090153         (      testssc.asm):00215                 fdb $3009,339
+71CE 30000000         (      testssc.asm):00216                 fdb $3000,0
+71D2 30090153         (      testssc.asm):00217                 fdb $3009,339
+71D6 3009011D         (      testssc.asm):00218                 fdb $3009,285
+71DA 300900E2         (      testssc.asm):00219                 fdb $3009,226
+71DE 00000000         (      testssc.asm):00220                 fdb 0,0
+71E2                  (      testssc.asm):00221         score2:
+71E2 60000000         (      testssc.asm):00222                 fdb $6000,0
+71E6 6009011D         (      testssc.asm):00223                 fdb $6009,285
+71EA 300900E2         (      testssc.asm):00224                 fdb $3009,226
+71EE 300900BE         (      testssc.asm):00225                 fdb $3009,190
+71F2 00000000         (      testssc.asm):00226                 fdb 0,0
+                      (      testssc.asm):00227         
+                      (      testssc.asm):00228                 end start

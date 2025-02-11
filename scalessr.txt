@@ -1,0 +1,205 @@
+     0001             (     scalessr.asm):00001         DEBUG:  equ 1
+                      (     scalessr.asm):00002                 include "inc/coco.inc"
+                      (     inc/coco.inc):00001                 ifndef coco_inc
+     0001             (     inc/coco.inc):00002         coco_inc: equ 1
+     010C             (     inc/coco.inc):00003         irqvec: equ $010c
+     0400             (     inc/coco.inc):00004         screen: equ $0400
+     FF00             (     inc/coco.inc):00005         pia0:   equ $ff00
+     FF20             (     inc/coco.inc):00006         pia1:   equ $ff20
+     FF7F             (     inc/coco.inc):00007         mpi:    equ $ff7f
+                      (     inc/coco.inc):00008         
+0000                  (     inc/coco.inc):00009         cart_snd macro
+                      (     inc/coco.inc):00010                 ;; sound mux to cart
+                      (     inc/coco.inc):00011                 lda pia0+1
+                      (     inc/coco.inc):00012                 anda #%11110111
+                      (     inc/coco.inc):00013                 sta pia0+1
+                      (     inc/coco.inc):00014                 lda pia0+3
+                      (     inc/coco.inc):00015                 ora #%00001000
+                      (     inc/coco.inc):00016                 sta pia0+3
+                      (     inc/coco.inc):00017                 ;; enable sound
+                      (     inc/coco.inc):00018                 lda pia1+3
+                      (     inc/coco.inc):00019                 ora #%00001000
+                      (     inc/coco.inc):00020                 sta pia1+3
+                      (     inc/coco.inc):00021                 endm
+                      (     inc/coco.inc):00022                 endif
+                      (     scalessr.asm):00003                 include "inc/aypsg.inc"
+                      (    inc/aypsg.inc):00001                 ifndef aypsg_inc
+     0001             (    inc/aypsg.inc):00002         ay_psg_inc:  equ 1
+     0000             (    inc/aypsg.inc):00003         ay_a_fine:   equ 0
+     0001             (    inc/aypsg.inc):00004         ay_a_coarse: equ 1
+     0002             (    inc/aypsg.inc):00005         ay_b_fine:   equ 2
+     0003             (    inc/aypsg.inc):00006         ay_b_coarse: equ 3
+     0004             (    inc/aypsg.inc):00007         ay_c_fine:   equ 4
+     0005             (    inc/aypsg.inc):00008         ay_c_coarse: equ 5
+     0006             (    inc/aypsg.inc):00009         ay_noise:    equ 6
+     0007             (    inc/aypsg.inc):00010         ay_enable:   equ 7
+     0008             (    inc/aypsg.inc):00011         ay_a_amp:    equ 8
+     0009             (    inc/aypsg.inc):00012         ay_b_amp:    equ 9
+     000A             (    inc/aypsg.inc):00013         ay_c_amp:    equ 10
+     000B             (    inc/aypsg.inc):00014         ay_e_fine:   equ 11
+     000C             (    inc/aypsg.inc):00015         ay_e_coarse: equ 12
+     000D             (    inc/aypsg.inc):00016         ay_e_shape:  equ 13
+                      (    inc/aypsg.inc):00017                 endif
+                      (     scalessr.asm):00004                 
+                      (     scalessr.asm):00005                 org $7000
+                      (     scalessr.asm):00006                 include "supersprite.asm"
+     FF5C             (  supersprite.asm):00001         reg:    equ $ff5c
+     FF5D             (  supersprite.asm):00002         data:   equ $ff5d
+                      (  supersprite.asm):00003         
+7000                  (  supersprite.asm):00004         pre     macro
+                      (  supersprite.asm):00005                 endm
+                      (  supersprite.asm):00006         
+7000                  (  supersprite.asm):00007         post    macro
+                      (  supersprite.asm):00008                 endm
+                      (  supersprite.asm):00009                 
+7000                  (  supersprite.asm):00010         tones:  
+7000 01AA017C0152013F (  supersprite.asm):00011                 fdb 426,380,338,319,284,253,226
+     011C00FD00E2
+700E 00D500E200FD011C (  supersprite.asm):00012                 fdb 213,226,253,284,319,338,380
+     013F0152017C
+701C 0000             (  supersprite.asm):00013                 fdb 0
+                      (  supersprite.asm):00014         
+701E                  (  supersprite.asm):00015         init:
+701E 8630             (  supersprite.asm):00016                 lda #$30
+7020 B7FF7F           (  supersprite.asm):00017                 sta mpi
+                      (  supersprite.asm):00018                 ifdef DEBUG
+7023 108E0400         (  supersprite.asm):00019                 ldy #screen
+7027 8620             (  supersprite.asm):00020                 lda #' '
+7029 1F89             (  supersprite.asm):00021                 tfr a,b
+702B                  (  supersprite.asm):00022         loop@:
+702B EDA1             (  supersprite.asm):00023                 std ,y++
+702D 108C0600         (  supersprite.asm):00024                 cmpy #screen+$0200
+7031 26F8             (  supersprite.asm):00025                 bne loop@
+7033 108E05E0         (  supersprite.asm):00026                 ldy #screen+15*32
+                      (  supersprite.asm):00027                 endif
+7037 39               (  supersprite.asm):00028                 rts
+                      (  supersprite.asm):00029         
+                      (  supersprite.asm):00030         
+7038                  (  supersprite.asm):00031         reset:
+7038 8608             (  supersprite.asm):00032                 lda #8
+703A C63F             (  supersprite.asm):00033                 ldb #%00111111
+703C 8D06             (  supersprite.asm):00034                 bsr control
+703E 8633             (  supersprite.asm):00035                 lda #$33
+7040 B7FF7F           (  supersprite.asm):00036                 sta $ff7f
+7043 39               (  supersprite.asm):00037                 rts
+                      (  supersprite.asm):00038         
+7044                  (  supersprite.asm):00039         control:        
+7044 FDFF5C           (  supersprite.asm):00040                 std reg
+                      (  supersprite.asm):00041                 ifdef DEBUG
+7047 E7A6             (  supersprite.asm):00042                 stb a,y
+                      (  supersprite.asm):00043                 endif
+7049 39               (  supersprite.asm):00044                 rts
+704A                  (     scalessr.asm):00007         start:
+                      (     scalessr.asm):00008                 include "base.asm"
+704A 8DD2             (         base.asm):00001                 bsr init
+                      (         base.asm):00002         
+                      (         base.asm):00003                 ;; reset registers to 0
+                      (         base.asm):00004                 pre
+704C 4F               (         base.asm):00005                 clra
+704D 5F               (         base.asm):00006                 clrb
+704E                  (         base.asm):00007         loop@:  
+704E 8DF4             (         base.asm):00008                 bsr control
+7050 4C               (         base.asm):00009                 inca
+7051 810E             (         base.asm):00010                 cmpa #14
+7053 26F9             (         base.asm):00011                 bne loop@
+                      (         base.asm):00012         
+7055 8607             (         base.asm):00013                 lda #ay_enable          ; disable audio
+7057 C63F             (         base.asm):00014                 ldb #%00111111
+7059 8DE9             (         base.asm):00015                 bsr control
+705B 8608             (         base.asm):00016                 lda #ay_a_amp           ; voice a max volume
+705D C60F             (         base.asm):00017                 ldb #15
+705F 8DE3             (         base.asm):00018                 bsr control
+7061 8607             (         base.asm):00019                 lda #ay_enable          ; enable voices a, b, and c
+7063 C638             (         base.asm):00020                 ldb #%00111000
+7065 8DDD             (         base.asm):00021                 bsr control
+                      (         base.asm):00022                 post
+                      (         base.asm):00023         
+                      (         base.asm):00024                 ;; iterate through notes
+7067 4F               (         base.asm):00025                 clra
+7068                  (         base.asm):00026         repeat@:        
+7068 8E7000           (         base.asm):00027                 ldx #tones
+706B                  (         base.asm):00028         loop@:  
+706B EC81             (         base.asm):00029                 ldd ,x++
+706D 2704             (         base.asm):00030                 beq exit@
+706F 8D10             (         base.asm):00031                 bsr notea
+7071 20F8             (         base.asm):00032                 bra loop@
+7073                  (         base.asm):00033         exit@:
+7073 FC7000           (         base.asm):00034                 ldd tones
+7076 8D09             (         base.asm):00035                 bsr notea
+                      (         base.asm):00036                 pre
+7078 8607             (         base.asm):00037                 lda #ay_enable          ; mute audio
+707A C63F             (         base.asm):00038                 ldb #%00111111
+707C 8DC6             (         base.asm):00039                 bsr control
+                      (         base.asm):00040                 post
+707E 16FFB7           (         base.asm):00041                 lbra reset
+                      (         base.asm):00042         
+                      (         base.asm):00043                 ;; play note on voice a
+7081                  (         base.asm):00044         notea:
+                      (         base.asm):00045                 ifdef DEBUG
+7081 FD05D0           (         base.asm):00046                 std screen+14*32+16
+                      (         base.asm):00047                 endif
+7084 3406             (         base.asm):00048                 pshs d
+                      (         base.asm):00049                 pre
+7086 8601             (         base.asm):00050                 lda #ay_a_coarse
+7088 E6E4             (         base.asm):00051                 ldb ,s
+708A 17FFB7           (         base.asm):00052                 lbsr control
+708D 8600             (         base.asm):00053                 lda #ay_a_fine
+708F E661             (         base.asm):00054                 ldb 1,s
+7091 17FFB0           (         base.asm):00055                 lbsr control
+                      (         base.asm):00056                 post    
+7094 8D19             (         base.asm):00057                 bsr wait
+7096 3586             (         base.asm):00058                 puls d,pc
+                      (         base.asm):00059         
+                      (         base.asm):00060                 ;; play note on voice b
+7098                  (         base.asm):00061         noteb:
+                      (         base.asm):00062                 ifdef DEBUG
+7098 FD05D4           (         base.asm):00063                 std screen+14*32+20
+                      (         base.asm):00064                 endif
+709B 3406             (         base.asm):00065                 pshs d
+                      (         base.asm):00066                 pre
+709D 8603             (         base.asm):00067                 lda #ay_b_coarse
+709F E6E4             (         base.asm):00068                 ldb ,s
+70A1 17FFA0           (         base.asm):00069                 lbsr control
+70A4 8602             (         base.asm):00070                 lda #ay_b_fine
+70A6 E661             (         base.asm):00071                 ldb 1,s
+70A8 17FF99           (         base.asm):00072                 lbsr control
+                      (         base.asm):00073                 post
+70AB 8D02             (         base.asm):00074                 bsr wait
+70AD 3586             (         base.asm):00075                 puls d,pc
+                      (         base.asm):00076         
+                      (         base.asm):00077                 ;; wait 500 ms
+70AF                  (         base.asm):00078         wait:
+70AF 3406             (         base.asm):00079                 pshs d
+70B1 861E             (         base.asm):00080                 lda #30
+                      (         base.asm):00081                 ifdef DEBUG
+70B3 B705C0           (         base.asm):00082                 sta screen+14*32
+                      (         base.asm):00083                 endif
+70B6                  (         base.asm):00084         loop@:
+70B6 F6FF02           (         base.asm):00085                 ldb pia0+2              ; acknowledge interrupt
+70B9 13               (         base.asm):00086                 sync
+70BA 4A               (         base.asm):00087                 deca
+                      (         base.asm):00088                 ifdef DEBUG
+70BB B705C0           (         base.asm):00089                 sta screen+14*32
+                      (         base.asm):00090                 endif
+70BE 26F6             (         base.asm):00091                 bne loop@
+70C0 3506             (         base.asm):00092                 puls d
+70C2 39               (         base.asm):00093                 rts
+                      (         base.asm):00094         
+                      (         base.asm):00095                 ;; play note on voice c
+70C3                  (         base.asm):00096         notec:
+                      (         base.asm):00097                 ifdef DEBUG
+70C3 FD05D8           (         base.asm):00098                 std screen+14*32+24
+                      (         base.asm):00099                 endif
+70C6 3406             (         base.asm):00100                 pshs d
+                      (         base.asm):00101                 pre
+70C8 8605             (         base.asm):00102                 lda #ay_c_coarse
+70CA E6E4             (         base.asm):00103                 ldb ,s
+70CC 17FF75           (         base.asm):00104                 lbsr control
+70CF 8604             (         base.asm):00105                 lda #ay_c_fine
+70D1 E661             (         base.asm):00106                 ldb 1,s
+70D3 17FF6E           (         base.asm):00107                 lbsr control
+                      (         base.asm):00108                 post
+70D6 8DD7             (         base.asm):00109                 bsr wait
+70D8 3586             (         base.asm):00110                 puls d,pc
+                      (         base.asm):00111                 
+                      (     scalessr.asm):00009                 end start

@@ -1,0 +1,3142 @@
+;**************************
+; INT0 (reset) vector
+;**************************
+F000: 52 4A       MOV %>4A,B
+F002: 0D          LDSP	; Load stack pointer to $4A
+XXXX:     lds #$00ff	; 6809 stack is in the other direction.
+F003: 8E F0 AE    CALL $F0AE	; Setup Peripheral file
+F006: 05          EINT
+F007: 8E F0 51    CALL $F051
+F00A: 8E F2 AF    CALL $F2AF
+F00D: 8E F3 F0    CALL $F3F0
+F010: E0 F5       JMP $F007
+
+;**************************
+; INT3 vector: New byte from host
+;**************************
+F012: B8          PUSH A
+F013: C8          PUSH B
+F014: D8 11       PUSH R17
+F016: D8 10       PUSH R16
+F018: 80 04       MOVP P4,A	; Load new data into r0
+F01A: 88 FF 00 11 MOVD %>FF00,R17
+F01E: F9          TRAP 6	; Process data?
+F01F: E7 05       JL $F026	; If carry clear, set CPU ready and exit
+F021: A3 05 00    ANDP %>05,P0	; Disable INT3. Needs further processing in maip loop?
+F024: E0 06       JMP $F02C	; Cleanup stack and RETI.
+F026: A3 7F 08    ANDP %>7F,P8	; Clears C7
+F029: A4 80 08    ORP %>80,P8	; Sets C7 (transisition indicates CPU is not busy to host?)
+F02C: D9 10       POP R16
+F02E: D9 11       POP R17
+F030: C9          POP B
+F031: B9          POP A
+F032: 0B          RETI
+
+;**************************
+; INT2 (Timer1) vector:
+;**************************
+F033: B8          PUSH A
+F034: C8          PUSH B
+F035: 52 05       MOV %>5,B	; Set r1 == 5
+F037: 72 10 47    MOV %>10,R71	; Set r17 == $10
+F03A: AA 00 26    LDA @>0026(B)	; Set r0 == [$0026 + B]
+F03D: B2          DEC A	; Set r0 == r0 - 1
+F03E: E3 07       JHS $F047	; Jump to $f047 if carry set
+F040: 46 47 3B 06 BTJO R71,R59,$F04A
+F044: 44 47 3B    OR R71,R59
+F047: AB 00 26    STA @>0026(B)
+F04A: DC 47       RR R71
+F04C: CA EC       DJNZ B,$F03A	; Decrement r1, Jump to $f03a if not 0
+F04E: C9          POP B
+F04F: B9          POP A
+F050: 0B          RETI
+
+F051: A4 10 00    ORP %>10,P0	; Set INT3 enable
+F054: 4D 08 09    CMP R8,R9
+F057: E2 54       JEQ $F0AD	; If R8 = R9, return
+F059: 88 00 00 11 MOVD %>0000,R17	; R16 = 0. R17 = 0
+F05D: FB          TRAP 4	; turn off interrupts; Process data
+F05E: 7D AF 07    CMP %>AF,R7	; test for psg direct mode
+F061: E2 20       JEQ $F083
+F063: 7D 00 07    CMP %>0,R7
+F066: E2 03       JEQ $F06B
+F068: 8C F1 57    BR $F157
+F06B: 2D 00       CMP %>0,A	; Test for software reset
+F06D: E2 91       JEQ $F000	; Jump to reset
+F06F: 2D C7       CMP %>C7,A	; Stop all speech?
+F071: E2 7A       JEQ $F0ED
+F073: 2D CF       CMP %>CF,A	; Stop all sound?
+F075: E2 53       JEQ $F0CA
+F077: 2D 80       CMP %>80,A
+F079: E1 20       JN $F09B
+F07B: D0 07       MOV A,R7
+F07D: 27 40 2D    BTJZ %>40,A,$F0AD	; if bit 7 of A is 0 jump to $F0AD
+F080: 8C F1 BF    BR $F1BF
+F083: 76 01 16 0C BTJO %>1,R22,$F093	; If bit 1 of R22 is 0 jump to $F093
+F087: 2D FF       CMP %>FF,A
+F089: E6 03       JNZ $F08E
+F08B: 8C F1 AF    BR $F1AF
+F08E: D0 3F       MOV A,R63
+F090: D4 16       INV R22	; 1s complements
+F092: 0A          RETS
+F093: D0 3C       MOV A,R60
+F095: 12 3F       MOV R63,A
+F097: F8          TRAP 7	; Load PSG, A = Address, R60 = data
+F098: D5 16       CLR R22
+F09A: 0A          RETS
+F09B: 2D 0D       CMP %>D,A	; Look for carriage return
+F09D: E6 09       JNZ $F0A8
+F09F: 22 20       MOV %>20,A	; Jump if not zero
+F0A1: 88 FF 02 11 MOVD %>FF02,R17
+F0A5: FB          TRAP 4	; R16 = $FF, R17 = $02
+F0A6: 22 0D       MOV %>D,A	; turn off interrupts; Process data
+F0A8: 88 FF 02 11 MOVD %>FF02,R17
+F0AC: FB          TRAP 4	; R16 = $FF, R17 = $02
+F0AD: 0A          RETS	; turn off interrupts; Process data
+
+;**************************
+; Subroutine: Setup peripheral file
+;**************************
+F0AE: A2 30 00    MOVP %>3C,P0	; Memory mode: Single Chip,
+	; INT3: Enable, clear (host data)
+	; INT2: Enable, clear (timer)
+	; INT1: Diable (allo load)
+F0B1: A2 7F 08    MOVP %>7F,P8	; Write $7f to C data port
+	; Select nothing, host not busy.
+F0B4: A2 FF 09    MOVP %>FF,P9	; Port C DDR: All output
+F0B7: A2 FF 08    MOVP %>FF,P8	; Write $ff to C data port
+	; Select nothing, host busy
+F0BA: A2 FF 02    MOVP %>FF,P2	; Load timer 1 reload register with $ff
+F0BD: A2 9F 03    MOVP %>9F,P3	; Reload prescaler & decrementer & begin decrememnting
+	; Timer source: internal clock
+	; Prescale reload reg: $1f
+F0C0: 8E F1 AF    CALL $F1AF
+F0C3: D5 08       CLR R8
+F0C5: D5 09       CLR R9
+F0C7: 8E F0 ED    CALL $F0ED
+F0CA: B5          CLR A
+F0CB: 52 17       MOV %>17,B
+F0CD: AB 00 25    STA @>0025(B)
+F0D0: CA FB       DJNZ B,$F0CD	; B--, Jump to $F0CD is zero, status bits not changed
+F0D2: 22 08       MOV %>8,A
+F0D4: F7          TRAP 8	; Load PSG, A = Address, R60 = data
+F0D5: 22 09       MOV %>9,A
+F0D7: F7          TRAP 8	; Load PSG, A = Address, R60 = data
+F0D8: 22 0A       MOV %>A,A
+F0DA: F7          TRAP 8	; Load PSG, A = Address, R60 = data
+F0DB: 52 07       MOV %>7,B
+F0DD: B4          INV A
+F0DE: AB 00 35    STA @>0035(B)
+F0E1: CA FB       DJNZ B,$F0DE	; B--, Jump to $F0DE is zero, status bits not changed
+F0E3: D5 0E       CLR R14
+F0E5: D5 0F       CLR R15
+F0E7: D5 43       CLR R67
+F0E9: 22 07       MOV %>7,A
+F0EB: F7          TRAP 8	; Load PSG, A = Address, R60 = data
+F0EC: 0A          RETS
+F0ED: D5 0A       CLR R10
+F0EF: D5 0B       CLR R11
+F0F1: D5 0C       CLR R12
+F0F3: D5 0D       CLR R13
+F0F5: D5 49       CLR R73
+F0F7: 72 FF 05    MOV %>FF,R5
+F0FA: A2 FF 0B    MOVP %>FF,P11	; D port DDR: All output
+F0FD: A2 00 0A    MOVP %>00,P10	; D port: $00
+F100: A2 08 08    MOVP %>08,P8	; Write $08 to C data port, Select: R, RAM, ALD, PSD
+F103: A2 FF 08    MOVP %>FF,P8	; Write $ff to C data port, Select nothing
+F106: 0A          RETS
+
+;**************************
+; TRAP 4
+;**************************
+F107: 06          DINT
+F108: F9          TRAP 6
+F109: 05          EINT
+F10A: 0A          RETS
+
+;**************************
+; SUBROUTINE: TRAP 6: Process data from host?
+; Input: A = data from host
+;        r16 = flags? (goes into port D data direction register)
+;        r17 = flags?
+;**************************
+F10B: 77 FF 10 08 BTJZ %>FF,R16,$F117	; If R17 contains any 0 bits jump to $F117
+F10F: 7D 04 11    CMP %>4,R17	; Compute R17 minus 4
+F112: E6 03       JNZ $F117	; Jump to $f117 if r17 != 4
+F114: A4 03 00    ORP %>03,P0	; Enable and clear INT1
+F117: C0          MOV A,B	; Copy incomming data to r1
+F118: 88 00 09 23 MOVD %>0009,R35	; r34 = $00, r35 = $09
+F11C: 48 11 23    ADD R17,R35	; R35 = R35 + R17
+F11F: 9A 23       LDA *R35	; r0 = [R34:R35]
+F121: 77 FF 10 01 BTJZ %>FF,R16,$F126	; If R16 contains any 0 bits jump to $F126
+F125: B3          INC A
+F126: D2 23       DEC R35
+F128: 9D 23       CMPA *R35
+F12A: E2 2A       JEQ $F156	; Jump to $f156 if r0 + 1 == r35 - 1
+F12C: 77 FF 10 04 BTJZ %>FF,R16,$F134	; If R16 contains any 0 bits jump to $F134
+F130: D3 23       INC R35
+F132: E0 03       JMP $F137
+F134: 9A 23       LDA *R35
+F136: B3          INC A
+F137: 9B 23       STA *R35
+F139: 82 06       MOVP A,P6	; Put r0 on B data port (A0-A7 of static RAM)
+F13B: DC 11       RR R17	; Rotate right, carry also gets bit 0
+F13D: 78 EC 11    ADD %>EC,R17
+F140: 12 11       MOV R17,A
+F142: 82 08       MOVP A,P8	; Put r0 on C data port
+F144: 12 10       MOV R16,A
+F146: 82 0B       MOVP A,P11	; Put r16 in port D data direction reg
+F148: 80 0A       MOVP P10,A	; Read port D data (Ram?, SP0256?, AY3-8913?)
+F14A: 77 FF 10 05 BTJZ %>FF,R16,$F153	; If R16 contains any 0 bits jump to $F153
+F14E: 92 0A       MOVP B,P10	; Write data from host to D data port (Ram?, SP0256?, A
+F150: A3 F7 08    ANDP %>F7,P8	; Set R/W* signal to W
+F153: A2 FF 08    MOVP %>FF,P8	; Disengage all control signals
+F156: 0A          RETS
+F157: 7D 8F 07    CMP %>8F,R7	; flag to Load timer base value?
+F15A: E6 04       JNZ $F160
+F15C: 82 02       MOVP A,P2	; Write timer reload register
+F15E: E0 4F       JMP $F1AF
+F160: 72 FF 13    MOV %>FF,R19
+F163: 76 20 07 07 BTJO %>20,R7,$F16E	; If bit 6 of R7 is 1 Jump to $F16E
+F167: 76 08 07 05 BTJO %>8,R7,$F170	; if bit 4 of R7 is 1 jump to $F170
+F16B: 72 0D 13    MOV %>D,R19
+F16E: D4 16       INV R22	; 1s complement
+F170: 7D 00 16    CMP %>0,R22
+F173: E6 0A       JNZ $F17F
+F175: 72 04 15    MOV %>4,R21
+F178: D3 16       INC R22
+F17A: B0          CLRC
+F17B: E1 02       JN $F17F
+F17D: D3 15       INC R21
+F17F: D0 3C       MOV A,R60
+F181: 42 07 04    MOV R7,R4
+F184: 72 FF 10    MOV %>FF,R16
+F187: 42 17 12    MOV R23,R18
+F18A: FA          TRAP 5
+F18B: 7D 00 03    CMP %>0,R3
+F18E: E6 05       JNZ $F195
+F190: D3 17       INC R23
+F192: 42 04 07    MOV R4,R7	; R7 = R4
+F195: DA 15 20    DJNZ R21,$F1B8
+F198: 1D 13       CMP R19,A
+F19A: E2 13       JEQ $F1AF
+F19C: 77 08 07 13 BTJZ %>8,R7,$F1B3
+F1A0: 72 02 15    MOV %>2,R21
+F1A3: 76 20 07 0F BTJO %>20,R7,$F1B6
+F1A7: D3 15       INC R21
+F1A9: B0          CLRC
+F1AA: E1 0C       JN $F1B8
+F1AC: D3 15       INC R21
+F1AE: 0A          RETS
+F1AF: D5 07       CLR R7
+F1B1: D5 17       CLR R23
+F1B3: 72 01 15    MOV %>1,R21
+F1B6: D5 16       CLR R22
+F1B8: 77 20 07 02 BTJZ %>20,R7,$F1BE
+F1BC: D5 16       CLR R22
+F1BE: 0A          RETS
+F1BF: 23 1F       AND %>1F,A
+F1C1: 88 FF 02 11 MOVD %>FF02,R17
+F1C5: 77 20 07 04 BTJZ %>20,R7,$F1CD
+F1C9: 24 80       OR %>80,A
+F1CB: DE 11       RL R17
+F1CD: 77 08 07 07 BTJZ %>8,R7,$F1D8
+F1D1: 76 20 07 06 BTJO %>20,R7,$F1DB
+F1D5: 78 04 11    ADD %>4,R17
+F1D8: FB          TRAP 4
+F1D9: E0 D4       JMP $F1AF
+F1DB: 42 07 04    MOV R7,R4
+F1DE: 42 17 12    MOV R23,R18
+F1E1: D5 10       CLR R16
+F1E3: FA          TRAP 5
+F1E4: 7D 00 03    CMP %>0,R3
+F1E7: E6 C6       JNZ $F1AF
+F1E9: 2D FF       CMP %>FF,A
+F1EB: E2 C2       JEQ $F1AF
+F1ED: D0 3F       MOV A,R63
+F1EF: FA          TRAP 5
+F1F0: 7D 00 03    CMP %>0,R3
+F1F3: E6 BA       JNZ $F1AF
+F1F5: 78 02 17    ADD %>2,R23
+F1F8: 42 04 07    MOV R4,R7
+F1FB: D0 3C       MOV A,R60
+F1FD: 12 3F       MOV R63,A
+F1FF: F8          TRAP 7	; Load PSG, A = Address, R60 = data
+F200: E0 D9       JMP $F1DB
+;**************************
+; TRAP 7: Load PSG
+; A = Address
+; R60 = data
+;**************************
+F202: 06          DINT
+F203: F7          TRAP 8
+F204: 05          EINT
+F205: 0A          RETS
+
+;**************************
+; TRAP 8: Load PSG
+; A = Address
+; R60 = data
+;**************************
+F206: A2 FF 0B    MOVP %>FF,P11	; Set D port (data bus) as all output
+F209: 82 0A       MOVP A,P10	; Write r0 to D port (data bus)
+F20B: A2 BF 08    MOVP %>BF,P8	; select PSG, BC1 high, BDIR high (inactive)
+F20E: A2 B6 08    MOVP %>B6,P8	; Select PSG, BC1 High, BDIR low (latch address)
+F211: 12 3C       MOV R60,A
+F213: 82 0A       MOVP A,P10	; Write value to Data bus
+F215: A2 BE 08    MOVP %>BE,P8	; Select PSG, BC1 Low, BDIR High (latch Data)
+F218: A2 FF 08    MOVP %>FF,P8	; Deselect
+F21B: 0A          RETS
+
+;**************************
+; INT1: Load request from SPO256-AL2
+;       This interrupt is generated when the SPO256-AL2 has finished playing
+;       the phonem.
+;**************************
+F21C: B8          PUSH A
+F21D: C8          PUSH B
+F21E: D8 11       PUSH R17
+F220: D8 10       PUSH R16
+F222: 7D FF 05    CMP %>FF,R5	; r5, flag to determine if there is data to send?
+F225: E6 1F       JNZ $F246
+F227: 88 00 04 11 MOVD %>0004,R17	; Input to TRAP 6
+F22B: F9          TRAP 6	; Get phonem from static ram?
+F22C: E3 32       JHS $F260	; If carry set jump to $f260 (carry set on error?)
+F22E: 26 80 0E    BTJO %>80,A,$F23F	; If MSB is set jump to $f23f
+F231: A2 FF 0B    MOVP %>FF,P11	; Set port D to output
+F234: 82 0A       MOVP A,P10	; Write Reg A to port D (data bus)
+F236: A2 DF 08    MOVP %>DF,P8	; Signal SPO256 a byte is available
+F239: A2 FF 08    MOVP %>FF,P8	; select no devices
+F23C: 8C F0 2C    BR $F02C	; Restore stack and RETI
+F23F: D0 05       MOV A,R5	; Set "no more data" flag
+F241: D5 06       CLR R6
+F243: 8C F0 2C    BR $F02C	; Restore stack and RETI
+F246: D5 10       CLR R16
+F248: 42 05 04    MOV R5,R4
+F24B: 42 06 12    MOV R6,R18
+F24E: D3 06       INC R6
+F250: F3          TRAP 12
+F251: 7D 00 03    CMP %>0,R3
+F254: E6 07       JNZ $F25D
+F256: 42 04 05    MOV R4,R5
+F259: 2D FF       CMP %>FF,A
+F25B: E6 D4       JNZ $F231
+F25D: 72 FF 05    MOV %>FF,R5
+F260: A3 14 00    ANDP %>14,P0	; Clear INT1 and INT2. Enable all interrupts
+F263: 8C F0 2C    BR $F02C	; Restore stack and RETI
+
+;**************************
+; TRAP 5:
+;**************************
+F266: 06          DINT
+F267: F3          TRAP 12
+F268: 05          EINT
+F269: 0A          RETS
+
+;**************************
+; TRAP 12
+;**************************
+F26A: D5 03       CLR R3
+F26C: 32 04       MOV R4,B
+F26E: 53 0F       AND %>F,B
+F270: 73 3F 12    AND %>3F,R18
+F273: 7D 3F 12    CMP %>3F,R18
+F276: E1 13       JN $F28B
+F278: 76 10 04 30 BTJO %>10,R4,$F2AC
+F27C: D3 04       INC R4
+F27E: D1 21       MOV B,R33
+F280: 45 04 21    XOR R4,R33
+F283: 77 08 21 04 BTJZ %>8,R33,$F28B
+F287: D2 04       DEC R4
+F289: E0 21       JMP $F2AC
+F28B: 5C 40       MPY %>40,B
+F28D: 28 E8       ADD %>E8,A
+F28F: 38 12       ADD R18,B
+F291: 92 06       MOVP B,P6
+F293: 82 08       MOVP A,P8
+F295: D3 12       INC R18
+F297: 12 10       MOV R16,A
+F299: 82 0B       MOVP A,P11
+F29B: 80 0A       MOVP P10,A
+F29D: 77 FF 10 07 BTJZ %>FF,R16,$F2A8
+F2A1: 12 3C       MOV R60,A
+F2A3: 82 0A       MOVP A,P10
+F2A5: A3 F7 08    ANDP %>F7,P8
+F2A8: A2 FF 08    MOVP %>FF,P8
+F2AB: 0A          RETS
+F2AC: D4 03       INV R3
+F2AE: 0A          RETS
+
+F2AF: 72 05 18    MOV %>5,R24
+F2B2: 88 00 2B 1A MOVD %>002B,R26
+F2B6: 88 00 35 20 MOVD %>0035,R32
+F2BA: 88 00 3A 1C MOVD %>003A,R28
+F2BE: 88 00 30 1E MOVD %>0030,R30
+F2C2: 72 10 46    MOV %>10,R70
+F2C5: 47 46 3B 43 BTJZ R70,R59,$F30C
+F2C9: 8E F3 2E    CALL $F32E
+F2CC: 7D 00 03    CMP %>0,R3
+F2CF: E2 19       JEQ $F2EA
+F2D1: 88 00 06 11 MOVD %>0006,R17
+F2D5: 9A 20       LDA *R32
+F2D7: D0 0E       MOV A,R14
+F2D9: 4D 0E 0F    CMP R14,R15
+F2DC: E2 2E       JEQ $F30C
+F2DE: FB          TRAP 4	; turn off interrupts; Process data
+F2DF: 9B 1C       STA *R28
+F2E1: B5          CLR A
+F2E2: 9B 1E       STA *R30
+F2E4: 12 0E       MOV R14,A
+F2E6: 9B 20       STA *R32
+F2E8: E0 DF       JMP $F2C9
+F2EA: 12 3C       MOV R60,A
+F2EC: 7D 04 18    CMP %>4,R24
+F2EF: E6 06       JNZ $F2F7
+F2F1: 23 60       AND %>60,A
+F2F3: 2D 60       CMP %>60,A
+F2F5: E2 12       JEQ $F309
+F2F7: 7D 05 18    CMP %>5,R24
+F2FA: E6 04       JNZ $F300
+F2FC: 76 80 3C 09 BTJO %>80,R60,$F309
+F300: 23 E0       AND %>E0,A
+F302: B7          SWAP A
+F303: BC          RR A
+F304: B3          INC A
+F305: 1D 18       CMP R24,A
+F307: E6 C0       JNZ $F2C9
+F309: 8E F3 6D    CALL $F36D
+F30C: DB 1A       DECD R26
+F30E: DB 20       DECD R32
+F310: DB 1C       DECD R28
+F312: DB 1E       DECD R30
+F314: DC 46       RR R70
+F316: DA 18 AC    DJNZ R24,$F2C5
+F319: 52 06       MOV %>6,B
+F31B: 88 00 35 20 MOVD %>0035,R32
+F31F: 9A 20       LDA *R32
+F321: 1A 0F       SUB R15,A
+F323: 1D 0E       CMP R14,A
+F325: E4 02       JP $F329
+F327: D0 0E       MOV A,R14
+F329: DB 20       DECD R32
+F32B: CA F2       DJNZ B,$F31F
+F32D: 0A          RETS
+F32E: 9A 1C       LDA *R28
+F330: 2D FF       CMP %>FF,A
+F332: E2 0D       JEQ $F341
+F334: D0 04       MOV A,R4
+F336: 9A 1E       LDA *R30
+F338: D0 12       MOV A,R18
+F33A: D5 10       CLR R16
+F33C: FA          TRAP 5
+F33D: 2D FF       CMP %>FF,A
+F33F: E6 03       JNZ $F344
+F341: 72 FF 03    MOV %>FF,R3
+F344: 7D 00 03    CMP %>0,R3
+F347: E6 23       JNZ $F36C
+F349: D0 3C       MOV A,R60
+F34B: 72 02 40    MOV %>2,R64
+F34E: 26 80 02    BTJO %>80,A,$F353
+F351: D3 40       INC R64
+F353: 88 00 24 42 MOVD %>0024,R66
+F357: FA          TRAP 5
+F358: 7D 00 03    CMP %>0,R3
+F35B: E6 0F       JNZ $F36C
+F35D: 9B 42       STA *R66
+F35F: D3 42       INC R66
+F361: DA 40 F3    DJNZ R64,$F357
+F364: 12 04       MOV R4,A
+F366: 9B 1C       STA *R28
+F368: 12 12       MOV R18,A
+F36A: 9B 1E       STA *R30
+F36C: 0A          RETS
+F36D: 12 3C       MOV R60,A
+F36F: 23 60       AND %>60,A
+F371: 2D 60       CMP %>60,A
+F373: E2 4A       JEQ $F3BF
+F375: B7          SWAP A
+F376: BC          RR A
+F377: B3          INC A
+F378: B8          PUSH A
+F379: 72 80 22    MOV %>80,R34
+F37C: 77 80 3C 07 BTJZ %>80,R60,$F387
+F380: 72 04 22    MOV %>4,R34
+F383: 76 80 24 03 BTJO %>80,R36,$F38A
+F387: 28 07       ADD %>7,A
+F389: F8          TRAP 7	; Load PSG, A = Address, R60 = data
+F38A: B9          POP A
+F38B: DE 22       RL R34
+F38D: BA FC       DJNZ A,$F38B
+F38F: 06          DINT
+F390: A2 FF 0B    MOVP %>FF,P11
+F393: A2 07 0A    MOVP %>07,P10
+F396: A2 BF 08    MOVP %>BF,P8
+F399: A2 B6 08    MOVP %>B6,P8
+F39C: A2 00 0B    MOVP %>00,P11
+F39F: A2 B7 08    MOVP %>B7,P8
+F3A2: 80 0A       MOVP P10,A
+F3A4: A2 FF 08    MOVP %>FF,P8
+F3A7: 05          EINT
+F3A8: 32 3C       MOV R60,B
+F3AA: 53 1F       AND %>1F,B
+F3AC: 5D 00       CMP %>0,B
+F3AE: E2 06       JEQ $F3B6
+F3B0: D4 22       INV R34
+F3B2: 13 22       AND R34,A
+F3B4: E0 02       JMP $F3B8
+F3B6: 14 22       OR R34,A
+F3B8: D0 3C       MOV A,R60
+F3BA: 22 07       MOV %>7,A
+F3BC: F8          TRAP 7	; Load PSG, A = Address, R60 = data
+F3BD: E0 03       JMP $F3C2
+F3BF: 22 0D       MOV %>D,A
+F3C1: F8          TRAP 7
+F3C2: 32 18       MOV R24,B
+F3C4: AA F3 EA    LDA @>F3EA(B)
+F3C7: D0 3F       MOV A,R63
+F3C9: 42 24 3C    MOV R36,R60
+F3CC: F8          TRAP 7
+F3CD: 42 25 3C    MOV R37,R60
+F3D0: 7D 05 18    CMP %>5,R24
+F3D3: E2 08       JEQ $F3DD
+F3D5: D2 3F       DEC R63
+F3D7: 12 3F       MOV R63,A
+F3D9: F8          TRAP 7
+F3DA: 42 26 3C    MOV R38,R60
+F3DD: 9A 1A       LDA *R26
+F3DF: 12 3C       MOV R60,A
+F3E1: 9B 1A       STA *R26
+F3E3: D4 46       INV R70
+F3E5: 43 46 3B    AND R70,R59
+F3E8: D4 46       INV R70
+F3EA: 0A          RETS
+F3EB: 01          FCB $01	; original location F3EB-F3EF
+F3EC: 03          FCB $03
+F3ED: 05          FCB $05
+F3EE: 0c          FCB $0c
+F3EF: 06          FCB $06
+
+F3F0: 4D 0A 0B    CMP R10,R11
+F3F3: E2 56       JEQ $F44B
+F3F5: 12 0C       MOV R12,A
+F3F7: 1A 0D       SUB R13,A
+F3F9: E1 06       JN $F401
+F3FB: E2 04       JEQ $F401
+F3FD: 2D 32       CMP %>32,A
+F3FF: E1 4A       JN $F44B
+F401: 72 00 21    MOV %>0,R33
+F404: 88 00 02 11 MOVD %>0002,R17
+F408: FB          TRAP 4	; turn off interrupts; Process data
+F409: D2 0A       DEC R10
+F40B: 2D 18       CMP %>18,A
+F40D: E1 04       JN $F413
+F40F: 8E F4 51    CALL $F451
+F412: 0A          RETS
+F413: 2D 0D       CMP %>D,A
+F415: E2 F8       JEQ $F40F
+F417: 72 FF 21    MOV %>FF,R33
+F41A: D3 0A       INC R10
+F41C: D0 20       MOV A,R32
+F41E: D5 48       CLR R72
+F420: 7D 00 07    CMP %>0,R7
+F423: E2 05       JEQ $F42A
+F425: 76 08 07 01 BTJO %>8,R7,$F42A
+F429: 0A          RETS
+F42A: 72 00 10    MOV %>0,R16
+F42D: 42 49 1F    MOV R73,R31
+F430: 42 20 04    MOV R32,R4
+F433: 42 49 12    MOV R73,R18
+F436: FA          TRAP 5
+F437: 42 04 20    MOV R4,R32
+F43A: 7D FF 03    CMP %>FF,R3
+F43D: E2 0C       JEQ $F44B
+F43F: 2D 0D       CMP %>D,A
+F441: E2 08       JEQ $F44B
+F443: F2          TRAP 13
+F444: 42 1F 49    MOV R31,R73
+F447: D3 49       INC R73
+F449: E0 DF       JMP $F42A
+F44B: 72 01 48    MOV %>1,R72
+F44E: D5 49       CLR R73
+F450: 0A          RETS
+F451: 4D 0A 0B    CMP R10,R11
+F454: E2 28       JEQ $F47E
+F456: 72 01 48    MOV %>1,R72
+F459: D8 0A       PUSH R10
+F45B: 42 0B 0A    MOV R11,R10
+F45E: D2 0A       DEC R10
+F460: 88 00 02 11 MOVD %>0002,R17
+F464: FB          TRAP 4	; turn off interrupts; Process data
+F465: D9 0A       POP R10
+F467: F1          TRAP 14
+F468: 7D 04 19    CMP %>4,R25
+F46B: E6 11       JNZ $F47E
+F46D: 88 00 02 11 MOVD %>0002,R17
+F471: FB          TRAP 4	; turn off interrupts; Process data
+F472: 42 0A 1F    MOV R10,R31
+F475: F2          TRAP 13
+F476: 42 1F 0A    MOV R31,R10
+F479: 7D 04 19    CMP %>4,R25
+F47C: E6 D3       JNZ $F451
+F47E: D5 19       CLR R25
+F480: 0A          RETS
+
+;**************************
+; TRAP 14
+;**************************
+F481: 2D 30       CMP %>30,A
+F483: E5 02       JPZ $F487
+F485: E0 31       JMP $F4B8
+F487: 2D 3A       CMP %>3A,A
+F489: E5 06       JPZ $F491
+F48B: 88 FF 4B 3E MOVD %>FF4B,R62
+F48F: E0 26       JMP $F4B7
+F491: 2D 41       CMP %>41,A
+F493: E5 02       JPZ $F497
+F495: E0 21       JMP $F4B8
+F497: 2D 5B       CMP %>5B,A
+F499: E5 09       JPZ $F4A4
+F49B: 88 F8 3E 3E MOVD %>F83E,R62
+F49F: 72 01 19    MOV %>1,R25
+F4A2: E0 13       JMP $F4B7
+F4A4: 2D 61       CMP %>61,A
+F4A6: E5 02       JPZ $F4AA
+F4A8: E0 0E       JMP $F4B8
+F4AA: 2D 7B       CMP %>7B,A
+F4AC: E5 0A       JPZ $F4B8
+F4AE: 2A 20       SUB %>20,A
+F4B0: 88 F8 3E 3E MOVD %>F83E,R62
+F4B4: 72 01 19    MOV %>1,R25
+F4B7: 0A          RETS
+F4B8: 72 04 19    MOV %>4,R25
+F4BB: 88 F8 11 3E MOVD %>F811,R62
+F4BF: E0 F6       JMP $F4B7
+
+;**************************
+; TRAP 13
+;**************************
+F4C1: F1          TRAP 14
+F4C2: 7D 01 19    CMP %>1,R25
+F4C5: E6 11       JNZ $F4D8
+F4C7: C5          CLR B
+F4C8: 2A 41       SUB %>41,A
+F4CA: 2C 02       MPY %>2,A
+F4CC: 58 02       ADD %>2,B
+F4CE: AA FF 79    LDA @>FF79(B)
+F4D1: D0 3D       MOV A,R61
+F4D3: AA FF 7A    LDA @>FF7A(B)
+F4D6: D0 3E       MOV A,R62
+F4D8: 8E F5 34    CALL $F534
+F4DB: 8E F5 5A    CALL $F55A
+F4DE: E3 43       JHS $F523
+F4E0: D5 1E       CLR R30
+F4E2: F0          TRAP 15
+F4E3: E3 3E       JHS $F523
+F4E5: 8E F7 9B    CALL $F79B
+F4E8: 72 01 1E    MOV %>1,R30
+F4EB: 42 1F 18    MOV R31,R24
+F4EE: F0          TRAP 15
+F4EF: E3 3D       JHS $F52E
+F4F1: 7D 00 1B    CMP %>0,R27
+F4F4: E2 06       JEQ $F4FC
+F4F6: D2 1B       DEC R27
+F4F8: D3 1F       INC R31
+F4FA: E0 F5       JMP $F4F1
+F4FC: 52 02       MOV %>2,B
+F4FE: EF          TRAP 16
+F4FF: 9A 3E       LDA *R62
+F501: 2D FF       CMP %>FF,A
+F503: E6 01       JNZ $F506
+F505: 0A          RETS
+F506: D5 1C       CLR R28
+F508: 9A 3E       LDA *R62
+F50A: 27 80 03    BTJZ %>80,A,$F510
+F50D: 72 01 1C    MOV %>1,R28
+F510: 23 3F       AND %>3F,A
+F512: 88 FF 04 11 MOVD %>FF04,R17
+F516: FB          TRAP 4	; turn off interrupts; Process data
+F517: D3 3E       INC R62
+F519: E7 02       JL $F51D
+F51B: D3 3D       INC R61
+F51D: 7D 01 1C    CMP %>1,R28
+F520: E6 E4       JNZ $F506
+F522: 0A          RETS
+F523: D3 3E       INC R62
+F525: E7 02       JL $F529
+F527: D3 3D       INC R61
+F529: 52 02       MOV %>2,B
+F52B: EF          TRAP 16
+F52C: E0 AD       JMP $F4DB
+F52E: 52 03       MOV %>3,B
+F530: EF          TRAP 16
+F531: E0 A8       JMP $F4DB
+F533: 0A          RETS
+F534: 9A 3E       LDA *R62
+F536: 27 40 01    BTJZ %>40,A,$F53A
+F539: 0A          RETS
+F53A: D3 3E       INC R62
+F53C: E7 02       JL $F540
+F53E: D3 3D       INC R61
+F540: E0 F2       JMP $F534
+F542: 0A          RETS
+
+;**************************
+; TRAP 16
+;**************************
+F543: D5 1C       CLR R28
+F545: 9A 3E       LDA *R62
+F547: 27 40 07    BTJZ %>40,A,$F551
+F54A: D3 1C       INC R28
+F54C: 3D 1C       CMP R28,B
+F54E: E4 01       JP $F551
+F550: 0A          RETS
+F551: D3 3E       INC R62
+F553: E7 02       JL $F557
+F555: D3 3D       INC R61
+F557: E0 EC       JMP $F545
+F559: 0A          RETS
+F55A: D5 1D       CLR R29
+F55C: D5 1B       CLR R27
+F55E: 42 1F 18    MOV R31,R24
+F561: 9A 3E       LDA *R62
+F563: 2D FF       CMP %>FF,A
+F565: E6 02       JNZ $F569
+F567: B0          CLRC
+F568: 0A          RETS
+F569: 7D 01 19    CMP %>1,R25
+F56C: E6 02       JNZ $F570
+F56E: D3 18       INC R24
+F570: F5          TRAP 10
+F571: 2D 61       CMP %>61,A
+F573: E1 02       JN $F577
+F575: 2A 20       SUB %>20,A
+F577: 2A 20       SUB %>20,A
+F579: C0          MOV A,B
+F57A: 53 3F       AND %>3F,B
+F57C: 9A 3E       LDA *R62
+F57E: 27 80 03    BTJZ %>80,A,$F584
+F581: 72 01 1D    MOV %>1,R29
+F584: 23 3F       AND %>3F,A
+F586: 3D 00       CMP R0,B
+F588: E2 04       JEQ $F58E
+F58A: D5 1B       CLR R27
+F58C: 07          SETC
+F58D: 0A          RETS
+F58E: 7D 01 19    CMP %>1,R25
+F591: E6 02       JNZ $F595
+F593: D3 1B       INC R27
+F595: 7D 01 1D    CMP %>1,R29
+F598: E6 02       JNZ $F59C
+F59A: B0          CLRC
+F59B: 0A          RETS
+F59C: D3 3E       INC R62
+F59E: E7 02       JL $F5A2
+F5A0: D3 3D       INC R61
+F5A2: 9A 3E       LDA *R62
+F5A4: E0 C8       JMP $F56E
+F5A6: 0A          RETS
+F5A7: D3 3E       INC R62
+F5A9: E7 02       JL $F5AD
+F5AB: D3 3D       INC R61
+F5AD: 9A 3E       LDA *R62
+F5AF: 27 40 06    BTJZ %>40,A,$F5B8
+F5B2: 72 01 1D    MOV %>1,R29
+F5B5: DB 3E       DECD R62
+F5B7: 0A          RETS
+F5B8: D5 1D       CLR R29
+F5BA: DB 3E       DECD R62
+F5BC: 0A          RETS
+
+;**************************
+; TRAP 9
+;**************************
+F5BD: C8          PUSH B
+F5BE: C5          CLR B
+F5BF: F5          TRAP 10
+F5C0: 2D 61       CMP %>61,A
+F5C2: E1 02       JN $F5C6
+F5C4: 2A 20       SUB %>20,A
+F5C6: 2A 41       SUB %>41,A
+F5C8: 68          ADD B,A
+F5C9: C0          MOV A,B
+F5CA: 5D 1A       CMP %>1A,B
+F5CC: E4 09       JP $F5D7
+F5CE: 5D 00       CMP %>0,B
+F5D0: E1 05       JN $F5D7
+F5D2: AA F7 F6    LDA @>F7F6(B)
+F5D5: C9          POP B
+F5D6: 0A          RETS
+F5D7: B5          CLR A
+F5D8: C9          POP B
+F5D9: 0A          RETS
+F5DA: D3 18       INC R24
+F5DC: F6          TRAP 9
+F5DD: 66 FB       BTJO B,A,$F5DA
+F5DF: D2 18       DEC R24
+F5E1: EE          TRAP 17
+F5E2: 0A          RETS
+F5E3: 8C F7 0E    BR $F70E
+F5E6: 8C F7 20    BR $F720
+F5E9: 8C F6 CE    BR $F6CE
+F5EC: 8C F7 42    BR $F742
+F5EF: 8C F7 54    BR $F754
+F5F2: 8C F7 30    BR $F730
+F5F5: 8C F7 36    BR $F736
+F5F8: 8C F6 B3    BR $F6B3
+F5FB: 8C F6 88    BR $F688
+F5FE: 8C F7 3C    BR $F73C
+F601: 8C F6 72    BR $F672
+F604: 8C F6 9A    BR $F69A
+
+;**************************
+; TRAP 15
+;**************************
+F607: 7D 00 1E    CMP %>0,R30
+F60A: E6 0A       JNZ $F616
+F60C: 52 40       MOV %>40,B
+F60E: D3 3E       INC R62
+F610: E7 02       JL $F614
+F612: D3 3D       INC R61
+F614: E0 04       JMP $F61A
+F616: 52 80       MOV %>80,B
+F618: DB 3E       DECD R62
+F61A: 9A 3E       LDA *R62
+F61C: 67 11       BTJZ B,A,$F62F
+F61E: 7D 00 1E    CMP %>0,R30
+F621: E6 04       JNZ $F627
+F623: DB 3E       DECD R62
+F625: E0 06       JMP $F62D
+F627: D3 3E       INC R62
+F629: E7 02       JL $F62D
+F62B: D3 3D       INC R61
+F62D: B0          CLRC
+F62E: 0A          RETS
+F62F: F4          TRAP 11
+F630: F5          TRAP 10
+F631: 2D 61       CMP %>61,A
+F633: E1 02       JN $F637
+F635: 2A 20       SUB %>20,A
+F637: 2A 20       SUB %>20,A
+F639: D0 1A       MOV A,R26
+F63B: 7D 00 1E    CMP %>0,R30
+F63E: E2 0D       JEQ $F64D
+F640: 7D 21 18    CMP %>21,R24
+F643: E6 08       JNZ $F64D
+F645: 22 13       MOV %>13,A
+F647: 9D 3E       CMPA *R62
+F649: E2 E2       JEQ $F62D
+F64B: 07          SETC
+F64C: 0A          RETS
+F64D: 9A 3E       LDA *R62
+F64F: 2D 15       CMP %>15,A
+F651: E1 13       JN $F666
+F653: D5 1D       CLR R29
+F655: 4D 00 1A    CMP R0,R26
+F658: E2 02       JEQ $F65C
+F65A: 07          SETC
+F65B: 0A          RETS
+F65C: EE          TRAP 17
+F65D: 7D 01 1D    CMP %>1,R29
+F660: E2 02       JEQ $F664
+F662: E0 A3       JMP $F607
+F664: B0          CLRC
+F665: 0A          RETS
+F666: 2D 07       CMP %>7,A
+F668: E2 E9       JEQ $F653
+F66A: C0          MOV A,B
+F66B: 5A 09       SUB %>9,B
+F66D: 5C 03       MPY %>3,B
+F66F: AC F5 E3    BR @>F5E3(B)
+F672: 7D 21 1A    CMP %>21,R26
+F675: E1 07       JN $F67E
+F677: 7D 3A 1A    CMP %>3A,R26
+F67A: E4 02       JP $F67E
+F67C: 07          SETC
+F67D: 0A          RETS
+F67E: EE          TRAP 17
+F67F: 7D 01 1D    CMP %>1,R29
+F682: E2 02       JEQ $F686
+F684: E0 DC       JMP $F662
+F686: B0          CLRC
+F687: 0A          RETS
+F688: F6          TRAP 9
+F689: 26 08 02    BTJO %>8,A,$F68E
+F68C: 07          SETC
+F68D: 0A          RETS
+F68E: 52 08       MOV %>8,B
+F690: ED          TRAP 18
+F691: 7D 01 1D    CMP %>1,R29
+F694: E2 02       JEQ $F698
+F696: E0 CA       JMP $F662
+F698: B0          CLRC
+F699: 0A          RETS
+F69A: F6          TRAP 9
+F69B: 26 80 02    BTJO %>80,A,$F6A0
+F69E: 07          SETC
+F69F: 0A          RETS
+F6A0: F4          TRAP 11
+F6A1: F6          TRAP 9
+F6A2: 26 80 02    BTJO %>80,A,$F6A7
+F6A5: 07          SETC
+F6A6: 0A          RETS
+F6A7: 52 80       MOV %>80,B
+F6A9: ED          TRAP 18
+F6AA: 7D 01 1D    CMP %>1,R29
+F6AD: E2 02       JEQ $F6B1
+F6AF: E0 B1       JMP $F662
+F6B1: B0          CLRC
+F6B2: 0A          RETS
+F6B3: F6          TRAP 9
+F6B4: 26 08 0B    BTJO %>8,A,$F6C2
+F6B7: EE          TRAP 17
+F6B8: 7D 01 1D    CMP %>1,R29
+F6BB: E2 03       JEQ $F6C0
+F6BD: EC          TRAP 19
+F6BE: E0 A2       JMP $F662
+F6C0: B0          CLRC
+F6C1: 0A          RETS
+F6C2: 52 08       MOV %>8,B
+F6C4: ED          TRAP 18
+F6C5: 7D 01 1D    CMP %>1,R29
+F6C8: E2 02       JEQ $F6CC
+F6CA: E0 F2       JMP $F6BE
+F6CC: B0          CLRC
+F6CD: 0A          RETS
+F6CE: F6          TRAP 9
+F6CF: 26 01 15    BTJO %>1,A,$F6E7
+F6D2: F5          TRAP 10
+F6D3: 2D 49       CMP %>49,A
+F6D5: E2 02       JEQ $F6D9
+F6D7: 07          SETC
+F6D8: 0A          RETS
+F6D9: F4          TRAP 11
+F6DA: F5          TRAP 10
+F6DB: 2D 4E       CMP %>4E,A
+F6DD: E6 F8       JNZ $F6D7
+F6DF: F4          TRAP 11
+F6E0: F5          TRAP 10
+F6E1: 2D 47       CMP %>47,A
+F6E3: E2 21       JEQ $F706
+F6E5: 07          SETC
+F6E6: 0A          RETS
+F6E7: F4          TRAP 11
+F6E8: F5          TRAP 10
+F6E9: 2D 52       CMP %>52,A
+F6EB: E2 19       JEQ $F706
+F6ED: 2D 53       CMP %>53,A
+F6EF: E2 15       JEQ $F706
+F6F1: 2D 44       CMP %>44,A
+F6F3: E2 11       JEQ $F706
+F6F5: 2D 4C       CMP %>4C,A
+F6F7: E2 03       JEQ $F6FC
+F6F9: EC          TRAP 19
+F6FA: E0 0A       JMP $F706
+F6FC: F4          TRAP 11
+F6FD: F5          TRAP 10
+F6FE: 2D 59       CMP %>59,A
+F700: E2 04       JEQ $F706
+F702: EC          TRAP 19
+F703: EC          TRAP 19
+F704: E0 20       JMP $F726
+F706: F4          TRAP 11
+F707: F5          TRAP 10
+F708: 2D 20       CMP %>20,A
+F70A: E2 1A       JEQ $F726
+F70C: 07          SETC
+F70D: 0A          RETS
+F70E: F6          TRAP 9
+F70F: 26 80 02    BTJO %>80,A,$F714
+F712: 07          SETC
+F713: 0A          RETS
+F714: 52 80       MOV %>80,B
+F716: ED          TRAP 18
+F717: 7D 01 1D    CMP %>1,R29
+F71A: E2 02       JEQ $F71E
+F71C: E0 AC       JMP $F6CA
+F71E: B0          CLRC
+F71F: 0A          RETS
+F720: F6          TRAP 9
+F721: 26 40 02    BTJO %>40,A,$F726
+F724: 07          SETC
+F725: 0A          RETS
+F726: EE          TRAP 17
+F727: 7D 01 1D    CMP %>1,R29
+F72A: E2 02       JEQ $F72E
+F72C: E0 EE       JMP $F71C
+F72E: B0          CLRC
+F72F: 0A          RETS
+F730: F6          TRAP 9
+F731: 26 08 F2    BTJO %>8,A,$F726
+F734: 07          SETC
+F735: 0A          RETS
+F736: F6          TRAP 9
+F737: 26 04 EC    BTJO %>4,A,$F726
+F73A: 07          SETC
+F73B: 0A          RETS
+F73C: F6          TRAP 9
+F73D: 26 02 E6    BTJO %>2,A,$F726
+F740: 07          SETC
+F741: 0A          RETS
+F742: F6          TRAP 9
+F743: 26 20 02    BTJO %>20,A,$F748
+F746: 07          SETC
+F747: 0A          RETS
+F748: 52 20       MOV %>20,B
+F74A: ED          TRAP 18
+F74B: 7D 01 1D    CMP %>1,R29
+F74E: E2 02       JEQ $F752
+F750: E0 CA       JMP $F71C
+F752: B0          CLRC
+F753: 0A          RETS
+F754: F6          TRAP 9
+F755: 26 10 0F    BTJO %>10,A,$F767
+F758: F5          TRAP 10
+F759: 2D 23       CMP %>23,A
+F75B: E2 02       JEQ $F75F
+F75D: 07          SETC
+F75E: 0A          RETS
+F75F: F4          TRAP 11
+F760: F5          TRAP 10
+F761: 2D 48       CMP %>48,A
+F763: E2 C1       JEQ $F726
+F765: 07          SETC
+F766: 0A          RETS
+F767: F5          TRAP 10
+F768: 2D 34       CMP %>34,A
+F76A: E2 04       JEQ $F770
+F76C: 2D 33       CMP %>33,A
+F76E: E6 B6       JNZ $F726
+F770: F4          TRAP 11
+F771: F5          TRAP 10
+F772: 2D 48       CMP %>48,A
+F774: E2 01       JEQ $F777
+F776: EC          TRAP 19
+F777: E0 D7       JMP $F750
+F779: 0A          RETS
+F77A: 07          SETC
+F77B: 0A          RETS
+
+;**************************
+; TRAP 10
+;**************************
+F77C: C8          PUSH B
+F77D: 7D 00 48    CMP %>0,R72
+F780: E6 09       JNZ $F78B
+F782: 42 20 04    MOV R32,R4
+F785: 42 18 12    MOV R24,R18
+F788: FA          TRAP 5
+F789: C9          POP B
+F78A: 0A          RETS
+F78B: D8 0A       PUSH R10
+F78D: 42 18 0A    MOV R24,R10
+F790: D2 0A       DEC R10
+F792: 88 00 02 11 MOVD %>0002,R17
+F796: FB          TRAP 4
+F797: D9 0A       POP R10
+F799: C9          POP B
+F79A: 0A          RETS
+F79B: 9A 3E       LDA *R62
+F79D: 27 40 01    BTJZ %>40,A,$F7A1
+F7A0: 0A          RETS
+F7A1: DB 3E       DECD R62
+F7A3: E0 F6       JMP $F79B
+F7A5: 0A          RETS
+
+;**************************
+; TRAP 17
+;**************************
+F7A6: 7D 00 1E    CMP %>0,R30
+F7A9: E6 04       JNZ $F7AF
+F7AB: 8E F5 A7    CALL $F5A7
+F7AE: 0A          RETS
+F7AF: DB 3E       DECD R62
+F7B1: 9A 3E       LDA *R62
+F7B3: 27 80 0A    BTJZ %>80,A,$F7C0
+F7B6: 72 01 1D    MOV %>1,R29
+F7B9: D3 3E       INC R62
+F7BB: E7 02       JL $F7BF
+F7BD: D3 3D       INC R61
+F7BF: 0A          RETS
+F7C0: D5 1D       CLR R29
+F7C2: D3 3E       INC R62
+F7C4: E7 02       JL $F7C8
+F7C6: D3 3D       INC R61
+F7C8: 0A          RETS
+
+;**************************
+; TRAP 18
+;**************************
+F7C9: 7D 00 1E    CMP %>0,R30
+F7CC: E6 04       JNZ $F7D2
+F7CE: 8E F5 DA    CALL $F5DA
+F7D1: 0A          RETS
+F7D2: D2 18       DEC R24
+F7D4: 7D 21 18    CMP %>21,R24
+F7D7: E2 03       JEQ $F7DC
+F7D9: F6          TRAP 9
+F7DA: 66 F6       BTJO B,A,$F7D2
+F7DC: D3 18       INC R24
+F7DE: EE          TRAP 17
+F7DF: 0A          RETS
+
+;**************************
+; TRAP 11
+;**************************
+F7E0: 7D 00 1E    CMP %>0,R30
+F7E3: E6 03       JNZ $F7E8
+F7E5: D3 18       INC R24
+F7E7: 0A          RETS
+F7E8: D2 18       DEC R24
+F7EA: 0A          RETS
+
+;**************************
+; TRAP 19
+;**************************
+F7EB: 7D 00 1E    CMP %>0,R30
+F7EE: E6 03       JNZ $F7F3
+F7F0: D2 18       DEC R24
+F7F2: 0A          RETS
+F7F3: D3 18       INC R24
+F7F5: 0A          RETS
+
+;**************************
+; Data
+;**************************
+F7F6: 80          FCB $80
+F7F7: 48          FCB $48
+F7F8: 68          FCB $68
+F7F9: 58          FCB $58
+F7FA: 85          FCB $85
+F7FB: 08          FCB $08
+F7FC: 68          FCB $68
+F7FD: 28          FCB $28
+F7FE: 84          FCB $84
+F7FF: 78          FCB $78
+F800: 08          FCB $08
+F801: 58          FCB $58
+F802: 48          FCB $48
+F803: 58          FCB $58
+F804: 82          FCB $82
+F805: 08          FCB $08
+F806: 08          FCB $08
+F807: 58          FCB $58
+F808: 38          FCB $38
+F809: 18          FCB $18
+F80A: 82          FCB $82
+F80B: 48          FCB $48
+F80C: 48          FCB $48
+F80D: 28          FCB $28
+F80E: 84          FCB $84
+F80F: 78          FCB $78
+F810: FF          FCB $FF
+F811: C0          FCB $C0
+F812: C1          FCB $C1
+F813: CD          FCB $CD
+F814: C0          FCB $C0
+F815: 0A          FCB $0A
+F816: 47          FCB $47
+F817: B3          FCB $B3
+F818: EB          FCB $EB
+F819: 09          FCB $09
+F81A: 10          FCB $10
+F81B: 0A          FCB $0A
+F81C: 25          FCB $25
+F81D: 47          FCB $47
+F81E: B3          FCB $B3
+F81F: EB          FCB $EB
+F820: 09          FCB $09
+F821: 47          FCB $47
+F822: B3          FCB $B3
+F823: EB          FCB $EB
+F824: 47          FCB $47
+F825: B3          FCB $B3
+F826: F7          FCB $F7
+F827: C7          FCB $C7
+F828: FF          FCB $FF
+F829: CC          FCB $CC
+F82A: C3          FCB $C3
+F82B: FF          FCB $FF
+F82C: 44          FCB $44
+F82D: 84          FCB $84
+F82E: DF          FCB $DF
+F82F: 44          FCB $44
+F830: 84          FCB $84
+F831: DB          FCB $DB
+F832: C3          FCB $C3
+F833: C2          FCB $C2
+F834: FF          FCB $FF
+F835: C1          FCB $C1
+F836: 44          FCB $44
+F837: 84          FCB $84
+F838: C8          FCB $C8
+F839: C4          FCB $C4
+F83A: C9          FCB $C9
+F83B: C4          FCB $C4
+F83C: DA          FCB $DA
+F83D: C4          FCB $C4
+F83E: 13          FCB $13
+F83F: FF          FCB $FF
+F840: 13          FCB $13
+F841: D4          FCB $D4
+F842: FF          FCB $FF
+F843: 13          FCB $13
+F844: CF          FCB $CF
+F845: 13          FCB $13
+F846: 72          FCB $72
+F847: A5          FCB $A5
+F848: 13          FCB $13
+F849: FB          FCB $FB
+F84A: 13          FCB $13
+F84B: F2          FCB $F2
+F84C: 2F          FCB $2F
+F84D: 4F          FCB $4F
+F84E: A7          FCB $A7
+F84F: 13          FCB $13
+F850: FF          FCB $FF
+F851: 0E          FCB $0E
+F852: 32          FCB $32
+F853: CF          FCB $CF
+F854: F2          FCB $F2
+F855: 09          FCB $09
+F856: EF          FCB $EF
+F857: 13          FCB $13
+F858: 10          FCB $10
+F859: 6E          FCB $6E
+F85A: B9          FCB $B9
+F85B: 47          FCB $47
+F85C: 0B          FCB $0B
+F85D: 93          FCB $93
+F85E: 67          FCB $67
+F85F: 21          FCB $21
+F860: 29          FCB $29
+F861: AE          FCB $AE
+F862: 4F          FCB $4F
+F863: 01          FCB $01
+F864: 3D          FCB $3D
+F865: 07          FCB $07
+F866: 07          FCB $07
+F867: 8B          FCB $8B
+F868: 13          FCB $13
+F869: FF          FCB $FF
+F86A: 0E          FCB $0E
+F86B: 09          FCB $09
+F86C: CF          FCB $CF
+F86D: 0E          FCB $0E
+F86E: F3          FCB $F3
+F86F: 09          FCB $09
+F870: 54          FCB $54
+F871: B7          FCB $B7
+F872: FF          FCB $FF
+F873: 37          FCB $37
+F874: 21          FCB $21
+F875: CF          FCB $CF
+F876: F7          FCB $F7
+F877: 57          FCB $57
+F878: 97          FCB $97
+F879: FF          FCB $FF
+F87A: 0E          FCB $0E
+F87B: 0F          FCB $0F
+F87C: 09          FCB $09
+F87D: D4          FCB $D4
+F87E: 09          FCB $09
+F87F: 10          FCB $10
+F880: E7          FCB $E7
+F881: 25          FCB $25
+F882: 4C          FCB $4C
+F883: 01          FCB $01
+F884: 8A          FCB $8A
+F885: FF          FCB $FF
+F886: 0E          FCB $0E
+F887: 0B          FCB $0B
+F888: D4          FCB $D4
+F889: FF          FCB $FF
+F88A: 0E          FCB $0E
+F88B: 0F          FCB $0F
+F88C: 10          FCB $10
+F88D: 09          FCB $09
+F88E: DA          FCB $DA
+F88F: 72          FCB $72
+F890: B2          FCB $B2
+F891: 5A          FCB $5A
+F892: A7          FCB $A7
+F893: 13          FCB $13
+F894: 10          FCB $10
+F895: F2          FCB $F2
+F896: 13          FCB $13
+F897: FB          FCB $FB
+F898: F2          FCB $F2
+F899: 13          FCB $13
+F89A: F3          FCB $F3
+F89B: F2          FCB $F2
+F89C: FB          FCB $FB
+F89D: 69          FCB $69
+F89E: B2          FCB $B2
+F89F: 47          FCB $47
+F8A0: AF          FCB $AF
+F8A1: E9          FCB $E9
+F8A2: D4          FCB $D4
+F8A3: F9          FCB $F9
+F8A4: D4          FCB $D4
+F8A5: F5          FCB $F5
+F8A6: D7          FCB $D7
+F8A7: 09          FCB $09
+F8A8: 10          FCB $10
+F8A9: EC          FCB $EC
+F8AA: 13          FCB $13
+F8AB: FE          FCB $FE
+F8AC: 09          FCB $09
+F8AD: 10          FCB $10
+F8AE: 6C          FCB $6C
+F8AF: B3          FCB $B3
+F8B0: 13          FCB $13
+F8B1: 7E          FCB $7E
+F8B2: AB          FCB $AB
+F8B3: 6C          FCB $6C
+F8B4: AB          FCB $AB
+F8B5: 57          FCB $57
+F8B6: 02          FCB $02
+F8B7: A9          FCB $A9
+F8B8: EC          FCB $EC
+F8B9: 0E          FCB $0E
+F8BA: 57          FCB $57
+F8BB: AD          FCB $AD
+F8BC: 13          FCB $13
+F8BD: 10          FCB $10
+F8BE: 62          FCB $62
+F8BF: 2C          FCB $2C
+F8C0: A5          FCB $A5
+F8C1: 54          FCB $54
+F8C2: 01          FCB $01
+F8C3: 3F          FCB $3F
+F8C4: BE          FCB $BE
+F8C5: 6E          FCB $6E
+F8C6: A7          FCB $A7
+F8C7: 0F          FCB $0F
+F8C8: 54          FCB $54
+F8C9: 0B          FCB $0B
+F8CA: 01          FCB $01
+F8CB: 8A          FCB $8A
+F8CC: FF          FCB $FF
+F8CD: DA          FCB $DA
+F8CE: 13          FCB $13
+F8CF: FF          FCB $FF
+F8D0: 13          FCB $13
+F8D1: 41          FCB $41
+F8D2: 3F          FCB $3F
+F8D3: 93          FCB $93
+F8D4: 13          FCB $13
+F8D5: E5          FCB $E5
+F8D6: 0E          FCB $0E
+F8D7: 09          FCB $09
+F8D8: 41          FCB $41
+F8D9: 3F          FCB $3F
+F8DA: 93          FCB $93
+F8DB: 13          FCB $13
+F8DC: 65          FCB $65
+F8DD: 25          FCB $25
+F8DE: AE          FCB $AE
+F8DF: 13          FCB $13
+F8E0: 7F          FCB $7F
+F8E1: 0C          FCB $0C
+F8E2: 8B          FCB $8B
+F8E3: 65          FCB $65
+F8E4: 29          FCB $29
+F8E5: 2E          FCB $2E
+F8E6: A7          FCB $A7
+F8E7: 41          FCB $41
+F8E8: 3F          FCB $3F
+F8E9: 13          FCB $13
+F8EA: 0C          FCB $0C
+F8EB: AC          FCB $AC
+F8EC: 13          FCB $13
+F8ED: 6F          FCB $6F
+F8EE: 34          FCB $34
+F8EF: A8          FCB $A8
+F8F0: 13          FCB $13
+F8F1: 41          FCB $41
+F8F2: 3F          FCB $3F
+F8F3: 35          FCB $35
+F8F4: 9D          FCB $9D
+F8F5: 13          FCB $13
+F8F6: 75          FCB $75
+F8F7: B3          FCB $B3
+F8F8: 09          FCB $09
+F8F9: 41          FCB $41
+F8FA: 3F          FCB $3F
+F8FB: 0C          FCB $0C
+F8FC: AB          FCB $AB
+F8FD: 75          FCB $75
+F8FE: 29          FCB $29
+F8FF: AC          FCB $AC
+F900: 41          FCB $41
+F901: 3F          FCB $3F
+F902: 0C          FCB $0C
+F903: 0C          FCB $0C
+F904: AD          FCB $AD
+F905: FF          FCB $FF
+F906: 22          FCB $22
+F907: FF          FCB $FF
+F908: FF          FCB $FF
+F909: 13          FCB $13
+F90A: 41          FCB $41
+F90B: 9C          FCB $9C
+F90C: FF          FCB $FF
+F90D: 33          FCB $33
+F90E: 41          FCB $41
+F90F: 9C          FCB $9C
+F910: 13          FCB $13
+F911: FF          FCB $FF
+F912: 0E          FCB $0E
+F913: 41          FCB $41
+F914: 9C          FCB $9C
+F915: FF          FCB $FF
+F916: 41          FCB $41
+F917: BF          FCB $BF
+F918: 13          FCB $13
+F919: FF          FCB $FF
+F91A: 13          FCB $13
+F91B: 77          FCB $77
+F91C: 37          FCB $37
+F91D: 93          FCB $93
+F91E: 13          FCB $13
+F91F: E8          FCB $E8
+F920: 0E          FCB $0E
+F921: 42          FCB $42
+F922: AA          FCB $AA
+F923: 0E          FCB $0E
+F924: 25          FCB $25
+F925: E8          FCB $E8
+F926: 42          FCB $42
+F927: AA          FCB $AA
+F928: E8          FCB $E8
+F929: 42          FCB $42
+F92A: B2          FCB $B2
+F92B: 33          FCB $33
+F92C: E9          FCB $E9
+F92D: 09          FCB $09
+F92E: 77          FCB $77
+F92F: 37          FCB $37
+F930: 86          FCB $86
+F931: E9          FCB $E9
+F932: 09          FCB $09
+F933: E5          FCB $E5
+F934: FF          FCB $FF
+F935: 0F          FCB $0F
+F936: 77          FCB $77
+F937: B7          FCB $B7
+F938: 23          FCB $23
+F939: FF          FCB $FF
+F93A: FF          FCB $FF
+F93B: EB          FCB $EB
+F93C: 09          FCB $09
+F93D: 42          FCB $42
+F93E: AA          FCB $AA
+F93F: EB          FCB $EB
+F940: 42          FCB $42
+F941: A9          FCB $A9
+F942: FF          FCB $FF
+F943: 13          FCB $13
+F944: 42          FCB $42
+F945: A9          FCB $A9
+F946: FF          FCB $FF
+F947: 33          FCB $33
+F948: 42          FCB $42
+F949: A9          FCB $A9
+F94A: FF          FCB $FF
+F94B: 12          FCB $12
+F94C: 42          FCB $42
+F94D: 88          FCB $88
+F94E: FF          FCB $FF
+F94F: 42          FCB $42
+F950: AA          FCB $AA
+F951: 13          FCB $13
+F952: FF          FCB $FF
+F953: 13          FCB $13
+F954: 41          FCB $41
+F955: 21          FCB $21
+F956: 93          FCB $93
+F957: FF          FCB $FF
+F958: 24          FCB $24
+F959: FF          FCB $FF
+F95A: 09          FCB $09
+F95B: 10          FCB $10
+F95C: 65          FCB $65
+F95D: A4          FCB $A4
+F95E: 13          FCB $13
+F95F: 41          FCB $41
+F960: 21          FCB $21
+F961: 0C          FCB $0C
+F962: 01          FCB $01
+F963: 95          FCB $95
+F964: 0A          FCB $0A
+F965: 25          FCB $25
+F966: FF          FCB $FF
+F967: 13          FCB $13
+F968: 41          FCB $41
+F969: 95          FCB $95
+F96A: 09          FCB $09
+F96B: 11          FCB $11
+F96C: 25          FCB $25
+F96D: FF          FCB $FF
+F96E: 13          FCB $13
+F96F: 42          FCB $42
+F970: 8D          FCB $8D
+F971: 13          FCB $13
+F972: E5          FCB $E5
+F973: 0E          FCB $0E
+F974: 09          FCB $09
+F975: 41          FCB $41
+F976: 21          FCB $21
+F977: 8C          FCB $8C
+F978: EF          FCB $EF
+F979: 13          FCB $13
+F97A: 41          FCB $41
+F97B: 21          FCB $21
+F97C: 9F          FCB $9F
+F97D: 6F          FCB $6F
+F97E: 25          FCB $25
+F97F: B3          FCB $B3
+F980: 41          FCB $41
+F981: 21          FCB $21
+F982: 0F          FCB $0F
+F983: AB          FCB $AB
+F984: 6F          FCB $6F
+F985: 29          FCB $29
+F986: 2E          FCB $2E
+F987: A7          FCB $A7
+F988: 41          FCB $41
+F989: 21          FCB $21
+F98A: 1F          FCB $1F
+F98B: 0C          FCB $0C
+F98C: AC          FCB $AC
+F98D: 09          FCB $09
+F98E: F5          FCB $F5
+F98F: 10          FCB $10
+F990: 21          FCB $21
+F991: 41          FCB $41
+F992: 0A          FCB $0A
+F993: 96          FCB $96
+F994: E7          FCB $E7
+F995: 41          FCB $41
+F996: 8A          FCB $8A
+F997: EA          FCB $EA
+F998: 41          FCB $41
+F999: 8A          FCB $8A
+F99A: FF          FCB $FF
+F99B: 13          FCB $13
+F99C: 41          FCB $41
+F99D: 95          FCB $95
+F99E: FF          FCB $FF
+F99F: 33          FCB $33
+F9A0: 41          FCB $41
+F9A1: 95          FCB $95
+F9A2: FF          FCB $FF
+F9A3: 41          FCB $41
+F9A4: A1          FCB $A1
+F9A5: 13          FCB $13
+F9A6: FF          FCB $FF
+F9A7: 13          FCB $13
+F9A8: D3          FCB $D3
+F9A9: 09          FCB $09
+F9AA: 10          FCB $10
+F9AB: FF          FCB $FF
+F9AC: 13          FCB $13
+F9AD: FF          FCB $FF
+F9AE: 07          FCB $07
+F9AF: 11          FCB $11
+F9B0: FF          FCB $FF
+F9B1: 13          FCB $13
+F9B2: FF          FCB $FF
+F9B3: 13          FCB $13
+F9B4: 10          FCB $10
+F9B5: FF          FCB $FF
+F9B6: 13          FCB $13
+F9B7: D3          FCB $D3
+F9B8: 09          FCB $09
+F9B9: E4          FCB $E4
+F9BA: 13          FCB $13
+F9BB: 41          FCB $41
+F9BC: 95          FCB $95
+F9BD: 09          FCB $09
+F9BE: 10          FCB $10
+F9BF: FF          FCB $FF
+F9C0: 24          FCB $24
+F9C1: 13          FCB $13
+F9C2: FF          FCB $FF
+F9C3: F6          FCB $F6
+F9C4: 25          FCB $25
+F9C5: 32          FCB $32
+F9C6: 47          FCB $47
+F9C7: A3          FCB $A3
+F9C8: 72          FCB $72
+F9C9: A9          FCB $A9
+F9CA: 09          FCB $09
+F9CB: 7C          FCB $7C
+F9CC: 93          FCB $93
+F9CD: 09          FCB $09
+F9CE: 10          FCB $10
+F9CF: F2          FCB $F2
+F9D0: 09          FCB $09
+F9D1: F3          FCB $F3
+F9D2: F2          FCB $F2
+F9D3: 09          FCB $09
+F9D4: 47          FCB $47
+F9D5: AF          FCB $AF
+F9D6: FF          FCB $FF
+F9D7: 0E          FCB $0E
+F9D8: 0B          FCB $0B
+F9D9: D3          FCB $D3
+F9DA: 72          FCB $72
+F9DB: A9          FCB $A9
+F9DC: 47          FCB $47
+F9DD: 07          FCB $07
+F9DE: 0E          FCB $0E
+F9DF: 8C          FCB $8C
+F9E0: F2          FCB $F2
+F9E1: F3          FCB $F3
+F9E2: 13          FCB $13
+F9E3: 76          FCB $76
+F9E4: 25          FCB $25
+F9E5: AE          FCB $AE
+F9E6: 13          FCB $13
+F9E7: 53          FCB $53
+F9E8: 23          FCB $23
+F9E9: 0C          FCB $0C
+F9EA: 8B          FCB $8B
+F9EB: 13          FCB $13
+F9EC: 76          FCB $76
+F9ED: 25          FCB $25
+F9EE: AE          FCB $AE
+F9EF: 53          FCB $53
+F9F0: 23          FCB $23
+F9F1: 07          FCB $07
+F9F2: 07          FCB $07
+F9F3: 8B          FCB $8B
+F9F4: 09          FCB $09
+F9F5: 10          FCB $10
+F9F6: FF          FCB $FF
+F9F7: 37          FCB $37
+F9F8: FF          FCB $FF
+F9F9: 0D          FCB $0D
+F9FA: F7          FCB $F7
+F9FB: DF          FCB $DF
+F9FC: F7          FCB $F7
+F9FD: 71          FCB $71
+F9FE: 9F          FCB $9F
+F9FF: FF          FCB $FF
+FA00: 2F          FCB $2F
+FA01: D3          FCB $D3
+FA02: 09          FCB $09
+FA03: 10          FCB $10
+FA04: 0C          FCB $0C
+FA05: F3          FCB $F3
+FA06: 13          FCB $13
+FA07: 4C          FCB $4C
+FA08: AB          FCB $AB
+FA09: 09          FCB $09
+FA0A: 10          FCB $10
+FA0B: FF          FCB $FF
+FA0C: 33          FCB $33
+FA0D: 13          FCB $13
+FA0E: FF          FCB $FF
+FA0F: 09          FCB $09
+FA10: 10          FCB $10
+FA11: 6C          FCB $6C
+FA12: B9          FCB $B9
+FA13: 13          FCB $13
+FA14: 6D          FCB $6D
+FA15: 93          FCB $93
+FA16: 09          FCB $09
+FA17: 10          FCB $10
+FA18: 6D          FCB $6D
+FA19: 25          FCB $25
+FA1A: 2E          FCB $2E
+FA1B: B4          FCB $B4
+FA1C: 50          FCB $50
+FA1D: 0C          FCB $0C
+FA1E: 0B          FCB $0B
+FA1F: 02          FCB $02
+FA20: 8D          FCB $8D
+FA21: 66          FCB $66
+FA22: 35          FCB $35
+FA23: AC          FCB $AC
+FA24: 68          FCB $68
+FA25: 1E          FCB $1E
+FA26: AD          FCB $AD
+FA27: 65          FCB $65
+FA28: B2          FCB $B2
+FA29: FC          FCB $FC
+FA2A: E5          FCB $E5
+FA2B: D3          FCB $D3
+FA2C: 61          FCB $61
+FA2D: 32          FCB $32
+FA2E: AE          FCB $AE
+FA2F: 74          FCB $74
+FA30: 8B          FCB $8B
+FA31: 13          FCB $13
+FA32: 61          FCB $61
+FA33: B2          FCB $B2
+FA34: 0E          FCB $0E
+FA35: F4          FCB $F4
+FA36: 11          FCB $11
+FA37: 61          FCB $61
+FA38: B2          FCB $B2
+FA39: FC          FCB $FC
+FA3A: 61          FCB $61
+FA3B: A4          FCB $A4
+FA3C: 47          FCB $47
+FA3D: 07          FCB $07
+FA3E: 01          FCB $01
+FA3F: 95          FCB $95
+FA40: 09          FCB $09
+FA41: 10          FCB $10
+FA42: E1          FCB $E1
+FA43: 13          FCB $13
+FA44: 53          FCB $53
+FA45: 8F          FCB $8F
+FA46: E1          FCB $E1
+FA47: 33          FCB $33
+FA48: 35          FCB $35
+FA49: C7          FCB $C7
+FA4A: E1          FCB $E1
+FA4B: D3          FCB $D3
+FA4C: 69          FCB $69
+FA4D: 27          FCB $27
+FA4E: A8          FCB $A8
+FA4F: D4          FCB $D4
+FA50: E9          FCB $E9
+FA51: D3          FCB $D3
+FA52: 13          FCB $13
+FA53: F9          FCB $F9
+FA54: C6          FCB $C6
+FA55: F9          FCB $F9
+FA56: D3          FCB $D3
+FA57: F5          FCB $F5
+FA58: D6          FCB $D6
+FA59: FF          FCB $FF
+FA5A: C7          FCB $C7
+FA5B: 13          FCB $13
+FA5C: FF          FCB $FF
+FA5D: 13          FCB $13
+FA5E: 47          FCB $47
+FA5F: 07          FCB $07
+FA60: A8          FCB $A8
+FA61: 75          FCB $75
+FA62: AC          FCB $AC
+FA63: 68          FCB $68
+FA64: 1E          FCB $1E
+FA65: AD          FCB $AD
+FA66: 6F          FCB $6F
+FA67: 35          FCB $35
+FA68: B2          FCB $B2
+FA69: 68          FCB $68
+FA6A: BA          FCB $BA
+FA6B: FF          FCB $FF
+FA6C: E8          FCB $E8
+FA6D: 13          FCB $13
+FA6E: FF          FCB $FF
+FA6F: 13          FCB $13
+FA70: 41          FCB $41
+FA71: 0A          FCB $0A
+FA72: 93          FCB $93
+FA73: 69          FCB $69
+FA74: B6          FCB $B6
+FA75: 41          FCB $41
+FA76: 3D          FCB $3D
+FA77: 0C          FCB $0C
+FA78: A3          FCB $A3
+FA79: 13          FCB $13
+FA7A: FF          FCB $FF
+FA7B: 29          FCB $29
+FA7C: 0E          FCB $0E
+FA7D: 41          FCB $41
+FA7E: BD          FCB $BD
+FA7F: E5          FCB $E5
+FA80: 34          FCB $34
+FA81: 41          FCB $41
+FA82: 3D          FCB $3D
+FA83: 87          FCB $87
+FA84: 33          FCB $33
+FA85: 35          FCB $35
+FA86: 67          FCB $67
+FA87: 25          FCB $25
+FA88: B3          FCB $B3
+FA89: 41          FCB $41
+FA8A: 24          FCB $24
+FA8B: 01          FCB $01
+FA8C: 0A          FCB $0A
+FA8D: 07          FCB $07
+FA8E: 07          FCB $07
+FA8F: B7          FCB $B7
+FA90: E7          FCB $E7
+FA91: 41          FCB $41
+FA92: A4          FCB $A4
+FA93: FF          FCB $FF
+FA94: 13          FCB $13
+FA95: 41          FCB $41
+FA96: A2          FCB $A2
+FA97: 13          FCB $13
+FA98: 22          FCB $22
+FA99: 09          FCB $09
+FA9A: FF          FCB $FF
+FA9B: 41          FCB $41
+FA9C: BD          FCB $BD
+FA9D: FF          FCB $FF
+FA9E: 0F          FCB $0F
+FA9F: 41          FCB $41
+FAA0: 8A          FCB $8A
+FAA1: 72          FCB $72
+FAA2: 25          FCB $25
+FAA3: A1          FCB $A1
+FAA4: 41          FCB $41
+FAA5: 22          FCB $22
+FAA6: 27          FCB $27
+FAA7: 94          FCB $94
+FAA8: 09          FCB $09
+FAA9: E8          FCB $E8
+FAAA: E8          FCB $E8
+FAAB: E8          FCB $E8
+FAAC: 41          FCB $41
+FAAD: A4          FCB $A4
+FAAE: FF          FCB $FF
+FAAF: 41          FCB $41
+FAB0: A4          FCB $A4
+FAB1: 13          FCB $13
+FAB2: FF          FCB $FF
+FAB3: 13          FCB $13
+FAB4: 54          FCB $54
+FAB5: 02          FCB $02
+FAB6: B2          FCB $B2
+FAB7: 13          FCB $13
+FAB8: 61          FCB $61
+FAB9: B6          FCB $B6
+FABA: 5B          FCB $5B
+FABB: 1A          FCB $1A
+FABC: A3          FCB $A3
+FABD: 13          FCB $13
+FABE: 65          FCB $65
+FABF: 32          FCB $32
+FAC0: A5          FCB $A5
+FAC1: 5B          FCB $5B
+FAC2: BC          FCB $BC
+FAC3: 13          FCB $13
+FAC4: 6F          FCB $6F
+FAC5: 35          FCB $35
+FAC6: B2          FCB $B2
+FAC7: 60          FCB $60
+FAC8: B3          FCB $B3
+FAC9: 6F          FCB $6F
+FACA: B7          FCB $B7
+FACB: 5B          FCB $5B
+FACC: A0          FCB $A0
+FACD: 65          FCB $65
+FACE: 21          FCB $21
+FACF: B2          FCB $B2
+FAD0: 34          FCB $34
+FAD1: 5B          FCB $5B
+FAD2: BB          FCB $BB
+FAD3: F9          FCB $F9
+FAD4: 0E          FCB $0E
+FAD5: 2E          FCB $2E
+FAD6: 5B          FCB $5B
+FAD7: 8C          FCB $8C
+FAD8: FF          FCB $FF
+FAD9: 12          FCB $12
+FADA: F9          FCB $F9
+FADB: FF          FCB $FF
+FADC: 09          FCB $09
+FADD: DB          FCB $DB
+FADE: FF          FCB $FF
+FADF: FF          FCB $FF
+FAE0: 13          FCB $13
+FAE1: EE          FCB $EE
+FAE2: 4C          FCB $4C
+FAE3: 8B          FCB $8B
+FAE4: FF          FCB $FF
+FAE5: 13          FCB $13
+FAE6: C6          FCB $C6
+FAE7: EE          FCB $EE
+FAE8: 24          FCB $24
+FAE9: 46          FCB $46
+FAEA: 8B          FCB $8B
+FAEB: 13          FCB $13
+FAEC: 10          FCB $10
+FAED: 65          FCB $65
+FAEE: A4          FCB $A4
+FAEF: 13          FCB $13
+FAF0: 46          FCB $46
+FAF1: 01          FCB $01
+FAF2: 95          FCB $95
+FAF3: 09          FCB $09
+FAF4: 11          FCB $11
+FAF5: 65          FCB $65
+FAF6: A4          FCB $A4
+FAF7: 13          FCB $13
+FAF8: 53          FCB $53
+FAF9: 01          FCB $01
+FAFA: 95          FCB $95
+FAFB: 65          FCB $65
+FAFC: AE          FCB $AE
+FAFD: 53          FCB $53
+FAFE: 0C          FCB $0C
+FAFF: 8B          FCB $8B
+FB00: E5          FCB $E5
+FB01: 34          FCB $34
+FB02: 46          FCB $46
+FB03: 8C          FCB $8C
+FB04: 13          FCB $13
+FB05: 10          FCB $10
+FB06: FF          FCB $FF
+FB07: 0B          FCB $0B
+FB08: C6          FCB $C6
+FB09: 65          FCB $65
+FB0A: B2          FCB $B2
+FB0B: 53          FCB $53
+FB0C: B3          FCB $B3
+FB0D: FF          FCB $FF
+FB0E: 0B          FCB $0B
+FB0F: D3          FCB $D3
+FB10: E5          FCB $E5
+FB11: D3          FCB $D3
+FB12: F2          FCB $F2
+FB13: 09          FCB $09
+FB14: 46          FCB $46
+FB15: B3          FCB $B3
+FB16: FF          FCB $FF
+FB17: 0E          FCB $0E
+FB18: 0B          FCB $0B
+FB19: C6          FCB $C6
+FB1A: FF          FCB $FF
+FB1B: 0E          FCB $0E
+FB1C: 0F          FCB $0F
+FB1D: 10          FCB $10
+FB1E: 09          FCB $09
+FB1F: CC          FCB $CC
+FB20: 0F          FCB $0F
+FB21: 0E          FCB $0E
+FB22: FF          FCB $FF
+FB23: 0E          FCB $0E
+FB24: 0F          FCB $0F
+FB25: CC          FCB $CC
+FB26: 09          FCB $09
+FB27: 11          FCB $11
+FB28: FF          FCB $FF
+FB29: 0E          FCB $0E
+FB2A: 0F          FCB $0F
+FB2B: CC          FCB $CC
+FB2C: FF          FCB $FF
+FB2D: 0E          FCB $0E
+FB2E: 0F          FCB $0F
+FB2F: C6          FCB $C6
+FB30: F2          FCB $F2
+FB31: F4          FCB $F4
+FB32: 11          FCB $11
+FB33: FF          FCB $FF
+FB34: 2F          FCB $2F
+FB35: 2E          FCB $2E
+FB36: F1          FCB $F1
+FB37: 67          FCB $67
+FB38: A8          FCB $A8
+FB39: C6          FCB $C6
+FB3A: 6C          FCB $6C
+FB3B: A4          FCB $A4
+FB3C: 46          FCB $46
+FB3D: 3E          FCB $3E
+FB3E: 01          FCB $01
+FB3F: 95          FCB $95
+FB40: 67          FCB $67
+FB41: AE          FCB $AE
+FB42: 46          FCB $46
+FB43: 8B          FCB $8B
+FB44: 71          FCB $71
+FB45: 35          FCB $35
+FB46: A5          FCB $A5
+FB47: 53          FCB $53
+FB48: 02          FCB $02
+FB49: A9          FCB $A9
+FB4A: FF          FCB $FF
+FB4B: CC          FCB $CC
+FB4C: 13          FCB $13
+FB4D: FF          FCB $FF
+FB4E: 13          FCB $13
+FB4F: 41          FCB $41
+FB50: 0A          FCB $0A
+FB51: 94          FCB $94
+FB52: FF          FCB $FF
+FB53: 41          FCB $41
+FB54: 8A          FCB $8A
+FB55: 13          FCB $13
+FB56: FF          FCB $FF
+FB57: 13          FCB $13
+FB58: 42          FCB $42
+FB59: 2A          FCB $2A
+FB5A: 94          FCB $94
+FB5B: 13          FCB $13
+FB5C: FF          FCB $FF
+FB5D: 2E          FCB $2E
+FB5E: FF          FCB $FF
+FB5F: FF          FCB $FF
+FB60: 13          FCB $13
+FB61: 42          FCB $42
+FB62: A9          FCB $A9
+FB63: FF          FCB $FF
+FB64: 42          FCB $42
+FB65: AA          FCB $AA
+FB66: 13          FCB $13
+FB67: FF          FCB $FF
+FB68: 13          FCB $13
+FB69: 47          FCB $47
+FB6A: 07          FCB $07
+FB6B: AD          FCB $AD
+FB6C: EF          FCB $EF
+FB6D: 23          FCB $23
+FB6E: 09          FCB $09
+FB6F: 6D          FCB $6D
+FB70: B5          FCB $B5
+FB71: 2C          FCB $2C
+FB72: FF          FCB $FF
+FB73: FF          FCB $FF
+FB74: 65          FCB $65
+FB75: 21          FCB $21
+FB76: A4          FCB $A4
+FB77: 6D          FCB $6D
+FB78: 13          FCB $13
+FB79: 01          FCB $01
+FB7A: 95          FCB $95
+FB7B: 61          FCB $61
+FB7C: 35          FCB $35
+FB7D: 27          FCB $27
+FB7E: A8          FCB $A8
+FB7F: 6D          FCB $6D
+FB80: 1A          FCB $1A
+FB81: A8          FCB $A8
+FB82: FF          FCB $FF
+FB83: ED          FCB $ED
+FB84: E2          FCB $E2
+FB85: D0          FCB $D0
+FB86: 13          FCB $13
+FB87: FF          FCB $FF
+FB88: 13          FCB $13
+FB89: 47          FCB $47
+FB8A: 07          FCB $07
+FB8B: 90          FCB $90
+FB8C: 6F          FCB $6F
+FB8D: B6          FCB $B6
+FB8E: 50          FCB $50
+FB8F: 1F          FCB $1F
+FB90: A3          FCB $A3
+FB91: FF          FCB $FF
+FB92: 2D          FCB $2D
+FB93: FF          FCB $FF
+FB94: FF          FCB $FF
+FB95: D0          FCB $D0
+FB96: 13          FCB $13
+FB97: FF          FCB $FF
+FB98: 13          FCB $13
+FB99: 47          FCB $47
+FB9A: 07          FCB $07
+FB9B: 8B          FCB $8B
+FB9C: 25          FCB $25
+FB9D: E7          FCB $E7
+FB9E: 0F          FCB $0F
+FB9F: 4B          FCB $4B
+FBA0: 01          FCB $01
+FBA1: 8A          FCB $8A
+FBA2: E7          FCB $E7
+FBA3: 32          FCB $32
+FBA4: 6C          FCB $6C
+FBA5: 01          FCB $01
+FBA6: A4          FCB $A4
+FBA7: E7          FCB $E7
+FBA8: 09          FCB $09
+FBA9: 6C          FCB $6C
+FBAA: 01          FCB $01
+FBAB: A4          FCB $A4
+FBAC: 67          FCB $67
+FBAD: AC          FCB $AC
+FBAE: 0B          FCB $0B
+FBAF: 6C          FCB $6C
+FBB0: 01          FCB $01
+FBB1: 24          FCB $24
+FBB2: BE          FCB $BE
+FBB3: E7          FCB $E7
+FBB4: EC          FCB $EC
+FBB5: EB          FCB $EB
+FBB6: 13          FCB $13
+FBB7: 6C          FCB $6C
+FBB8: 02          FCB $02
+FBB9: A9          FCB $A9
+FBBA: EB          FCB $EB
+FBBB: 33          FCB $33
+FBBC: 6C          FCB $6C
+FBBD: 02          FCB $02
+FBBE: A9          FCB $A9
+FBBF: EB          FCB $EB
+FBC0: 6C          FCB $6C
+FBC1: 02          FCB $02
+FBC2: AA          FCB $AA
+FBC3: 13          FCB $13
+FBC4: 6F          FCB $6F
+FBC5: B7          FCB $B7
+FBC6: 13          FCB $13
+FBC7: 4B          FCB $4B
+FBC8: A0          FCB $A0
+FBC9: 2E          FCB $2E
+FBCA: FF          FCB $FF
+FBCB: FF          FCB $FF
+FBCC: 09          FCB $09
+FBCD: 10          FCB $10
+FBCE: F5          FCB $F5
+FBCF: 4B          FCB $4B
+FBD0: 31          FCB $31
+FBD1: 96          FCB $96
+FBD2: FF          FCB $FF
+FBD3: 12          FCB $12
+FBD4: F8          FCB $F8
+FBD5: 47          FCB $47
+FBD6: B4          FCB $B4
+FBD7: 4B          FCB $4B
+FBD8: 02          FCB $02
+FBD9: 8D          FCB $8D
+FBDA: FF          FCB $FF
+FBDB: CB          FCB $CB
+FBDC: 13          FCB $13
+FBDD: FF          FCB $FF
+FBDE: 13          FCB $13
+FBDF: F5          FCB $F5
+FBE0: E6          FCB $E6
+FBE1: 13          FCB $13
+FBE2: 4F          FCB $4F
+FBE3: A3          FCB $A3
+FBE4: 09          FCB $09
+FBE5: 10          FCB $10
+FBE6: F2          FCB $F2
+FBE7: 13          FCB $13
+FBE8: F3          FCB $F3
+FBE9: 09          FCB $09
+FBEA: 10          FCB $10
+FBEB: 72          FCB $72
+FBEC: B3          FCB $B3
+FBED: 13          FCB $13
+FBEE: 73          FCB $73
+FBEF: AB          FCB $AB
+FBF0: F2          FCB $F2
+FBF1: FA          FCB $FA
+FBF2: 13          FCB $13
+FBF3: 6E          FCB $6E
+FBF4: A5          FCB $A5
+FBF5: 6E          FCB $6E
+FBF6: 0F          FCB $0F
+FBF7: 8B          FCB $8B
+FBF8: 0F          FCB $0F
+FBF9: 6E          FCB $6E
+FBFA: A5          FCB $A5
+FBFB: 6E          FCB $6E
+FBFC: 0F          FCB $0F
+FBFD: 8B          FCB $8B
+FBFE: 11          FCB $11
+FBFF: F7          FCB $F7
+FC00: 2E          FCB $2E
+FC01: E0          FCB $E0
+FC02: F7          FCB $F7
+FC03: F5          FCB $F5
+FC04: 13          FCB $13
+FC05: 76          FCB $76
+FC06: 25          FCB $25
+FC07: B2          FCB $B2
+FC08: 75          FCB $75
+FC09: 23          FCB $23
+FC0A: B3          FCB $B3
+FC0B: F6          FCB $F6
+FC0C: 4F          FCB $4F
+FC0D: A3          FCB $A3
+FC0E: 11          FCB $11
+FC0F: ED          FCB $ED
+FC10: 4F          FCB $4F
+FC11: 90          FCB $90
+FC12: FF          FCB $FF
+FC13: 0E          FCB $0E
+FC14: 0B          FCB $0B
+FC15: F5          FCB $F5
+FC16: FF          FCB $FF
+FC17: 0E          FCB $0E
+FC18: 25          FCB $25
+FC19: 2E          FCB $2E
+FC1A: F5          FCB $F5
+FC1B: FF          FCB $FF
+FC1C: 0E          FCB $0E
+FC1D: 29          FCB $29
+FC1E: 09          FCB $09
+FC1F: F5          FCB $F5
+FC20: EC          FCB $EC
+FC21: 24          FCB $24
+FC22: 75          FCB $75
+FC23: AD          FCB $AD
+FC24: 75          FCB $75
+FC25: 27          FCB $27
+FC26: 28          FCB $28
+FC27: B4          FCB $B4
+FC28: 57          FCB $57
+FC29: 17          FCB $17
+FC2A: 02          FCB $02
+FC2B: 8D          FCB $8D
+FC2C: 75          FCB $75
+FC2D: 27          FCB $27
+FC2E: A8          FCB $A8
+FC2F: 4F          FCB $4F
+FC30: 0F          FCB $0F
+FC31: A8          FCB $A8
+FC32: 0C          FCB $0C
+FC33: 75          FCB $75
+FC34: B2          FCB $B2
+FC35: FA          FCB $FA
+FC36: 10          FCB $10
+FC37: 75          FCB $75
+FC38: B2          FCB $B2
+FC39: 60          FCB $60
+FC3A: B3          FCB $B3
+FC3B: 13          FCB $13
+FC3C: F5          FCB $F5
+FC3D: E0          FCB $E0
+FC3E: 10          FCB $10
+FC3F: F5          FCB $F5
+FC40: 33          FCB $33
+FC41: 09          FCB $09
+FC42: E0          FCB $E0
+FC43: 75          FCB $75
+FC44: B3          FCB $B3
+FC45: 4F          FCB $4F
+FC46: B7          FCB $B7
+FC47: 75          FCB $75
+FC48: 2C          FCB $2C
+FC49: A4          FCB $A4
+FC4A: 5E          FCB $5E
+FC4B: 01          FCB $01
+FC4C: 95          FCB $95
+FC4D: 0E          FCB $0E
+FC4E: F5          FCB $F5
+FC4F: 0E          FCB $0E
+FC50: 2C          FCB $2C
+FC51: CF          FCB $CF
+FC52: 75          FCB $75
+FC53: B0          FCB $B0
+FC54: 5F          FCB $5F
+FC55: 02          FCB $02
+FC56: 89          FCB $89
+FC57: F5          FCB $F5
+FC58: E0          FCB $E0
+FC59: F9          FCB $F9
+FC5A: C5          FCB $C5
+FC5B: 69          FCB $69
+FC5C: 2E          FCB $2E
+FC5D: A7          FCB $A7
+FC5E: 75          FCB $75
+FC5F: 0C          FCB $0C
+FC60: AC          FCB $AC
+FC61: E9          FCB $E9
+FC62: C5          FCB $C5
+FC63: 6F          FCB $6F
+FC64: B2          FCB $B2
+FC65: FA          FCB $FA
+FC66: 6F          FCB $6F
+FC67: AB          FCB $AB
+FC68: 13          FCB $13
+FC69: 5E          FCB $5E
+FC6A: 02          FCB $02
+FC6B: A9          FCB $A9
+FC6C: 6F          FCB $6F
+FC6D: AB          FCB $AB
+FC6E: 33          FCB $33
+FC6F: 5E          FCB $5E
+FC70: 02          FCB $02
+FC71: A9          FCB $A9
+FC72: 6F          FCB $6F
+FC73: AB          FCB $AB
+FC74: 5E          FCB $5E
+FC75: 02          FCB $02
+FC76: AA          FCB $AA
+FC77: 6F          FCB $6F
+FC78: A4          FCB $A4
+FC79: 13          FCB $13
+FC7A: 5E          FCB $5E
+FC7B: 01          FCB $01
+FC7C: 95          FCB $95
+FC7D: EF          FCB $EF
+FC7E: 24          FCB $24
+FC7F: DE          FCB $DE
+FC80: EF          FCB $EF
+FC81: DF          FCB $DF
+FC82: FF          FCB $FF
+FC83: 25          FCB $25
+FC84: F5          FCB $F5
+FC85: FF          FCB $FF
+FC86: 13          FCB $13
+FC87: F5          FCB $F5
+FC88: 61          FCB $61
+FC89: B2          FCB $B2
+FC8A: FA          FCB $FA
+FC8B: E1          FCB $E1
+FC8C: F5          FCB $F5
+FC8D: 13          FCB $13
+FC8E: 6E          FCB $6E
+FC8F: 2C          FCB $2C
+FC90: B9          FCB $B9
+FC91: 75          FCB $75
+FC92: 0B          FCB $0B
+FC93: 2D          FCB $2D
+FC94: 93          FCB $93
+FC95: 13          FCB $13
+FC96: 6E          FCB $6E
+FC97: 23          FCB $23
+FC98: A5          FCB $A5
+FC99: 6E          FCB $6E
+FC9A: 0F          FCB $0F
+FC9B: 0B          FCB $0B
+FC9C: B7          FCB $B7
+FC9D: 6E          FCB $6E
+FC9E: 07          FCB $07
+FC9F: B4          FCB $B4
+FCA0: 75          FCB $75
+FCA1: 0B          FCB $0B
+FCA2: 02          FCB $02
+FCA3: 8D          FCB $8D
+FCA4: 23          FCB $23
+FCA5: FF          FCB $FF
+FCA6: 2E          FCB $2E
+FCA7: CF          FCB $CF
+FCA8: FF          FCB $FF
+FCA9: 2E          FCB $2E
+FCAA: 27          FCB $27
+FCAB: D7          FCB $D7
+FCAC: 13          FCB $13
+FCAD: 11          FCB $11
+FCAE: FF          FCB $FF
+FCAF: 2E          FCB $2E
+FCB0: CF          FCB $CF
+FCB1: 29          FCB $29
+FCB2: EE          FCB $EE
+FCB3: 4F          FCB $4F
+FCB4: 8B          FCB $8B
+FCB5: 09          FCB $09
+FCB6: 10          FCB $10
+FCB7: EE          FCB $EE
+FCB8: 13          FCB $13
+FCB9: 4F          FCB $4F
+FCBA: 8B          FCB $8B
+FCBB: FF          FCB $FF
+FCBC: 33          FCB $33
+FCBD: 34          FCB $34
+FCBE: 13          FCB $13
+FCBF: F5          FCB $F5
+FCC0: E6          FCB $E6
+FCC1: 0E          FCB $0E
+FCC2: 57          FCB $57
+FCC3: A8          FCB $A8
+FCC4: 74          FCB $74
+FCC5: 28          FCB $28
+FCC6: 25          FCB $25
+FCC7: B2          FCB $B2
+FCC8: 4F          FCB $4F
+FCC9: 36          FCB $36
+FCCA: B3          FCB $B3
+FCCB: 73          FCB $73
+FCCC: B3          FCB $B3
+FCCD: 13          FCB $13
+FCCE: 57          FCB $57
+FCCF: 17          FCB $17
+FCD0: 37          FCB $37
+FCD1: B7          FCB $B7
+FCD2: FF          FCB $FF
+FCD3: D8          FCB $D8
+FCD4: 73          FCB $73
+FCD5: 39          FCB $39
+FCD6: 23          FCB $23
+FCD7: A8          FCB $A8
+FCD8: 77          FCB $77
+FCD9: 37          FCB $37
+FCDA: 06          FCB $06
+FCDB: 01          FCB $01
+FCDC: AA          FCB $AA
+FCDD: 13          FCB $13
+FCDE: FF          FCB $FF
+FCDF: 13          FCB $13
+FCE0: 42          FCB $42
+FCE1: 09          FCB $09
+FCE2: 93          FCB $93
+FCE3: E8          FCB $E8
+FCE4: E8          FCB $E8
+FCE5: 65          FCB $65
+FCE6: 2F          FCB $2F
+FCE7: B0          FCB $B0
+FCE8: 42          FCB $42
+FCE9: 09          FCB $09
+FCEA: 13          FCB $13
+FCEB: 02          FCB $02
+FCEC: 89          FCB $89
+FCED: 6F          FCB $6F
+FCEE: B7          FCB $B7
+FCEF: 42          FCB $42
+FCF0: 09          FCB $09
+FCF1: A0          FCB $A0
+FCF2: 75          FCB $75
+FCF3: B4          FCB $B4
+FCF4: 13          FCB $13
+FCF5: 42          FCB $42
+FCF6: 09          FCB $09
+FCF7: 1E          FCB $1E
+FCF8: 02          FCB $02
+FCF9: 8D          FCB $8D
+FCFA: FF          FCB $FF
+FCFB: 30          FCB $30
+FCFC: FF          FCB $FF
+FCFD: FF          FCB $FF
+FCFE: 42          FCB $42
+FCFF: 89          FCB $89
+FD00: 13          FCB $13
+FD01: FF          FCB $FF
+FD02: 13          FCB $13
+FD03: 42          FCB $42
+FD04: 2A          FCB $2A
+FD05: 31          FCB $31
+FD06: 9F          FCB $9F
+FD07: 75          FCB $75
+FD08: 21          FCB $21
+FD09: B2          FCB $B2
+FD0A: 42          FCB $42
+FD0B: 08          FCB $08
+FD0C: 30          FCB $30
+FD0D: BA          FCB $BA
+FD0E: 75          FCB $75
+FD0F: A5          FCB $A5
+FD10: 13          FCB $13
+FD11: 42          FCB $42
+FD12: 2A          FCB $2A
+FD13: 31          FCB $31
+FD14: 9F          FCB $9F
+FD15: F5          FCB $F5
+FD16: 42          FCB $42
+FD17: 08          FCB $08
+FD18: B0          FCB $B0
+FD19: 13          FCB $13
+FD1A: FF          FCB $FF
+FD1B: 13          FCB $13
+FD1C: FB          FCB $FB
+FD1D: 13          FCB $13
+FD1E: E5          FCB $E5
+FD1F: 0E          FCB $0E
+FD20: 09          FCB $09
+FD21: 4E          FCB $4E
+FD22: 93          FCB $93
+FD23: 32          FCB $32
+FD24: FF          FCB $FF
+FD25: FF          FCB $FF
+FD26: 11          FCB $11
+FD27: FF          FCB $FF
+FD28: E7          FCB $E7
+FD29: FF          FCB $FF
+FD2A: CE          FCB $CE
+FD2B: 13          FCB $13
+FD2C: FF          FCB $FF
+FD2D: 13          FCB $13
+FD2E: 47          FCB $47
+FD2F: 07          FCB $07
+FD30: 37          FCB $37
+FD31: B7          FCB $B7
+FD32: E8          FCB $E8
+FD33: E5          FCB $E5
+FD34: 09          FCB $09
+FD35: 69          FCB $69
+FD36: 2F          FCB $2F
+FD37: AE          FCB $AE
+FD38: 66          FCB $66
+FD39: 0F          FCB $0F
+FD3A: 8B          FCB $8B
+FD3B: 09          FCB $09
+FD3C: 75          FCB $75
+FD3D: B2          FCB $B2
+FD3E: 09          FCB $09
+FD3F: 66          FCB $66
+FD40: B3          FCB $B3
+FD41: 75          FCB $75
+FD42: B2          FCB $B2
+FD43: 09          FCB $09
+FD44: 65          FCB $65
+FD45: B3          FCB $B3
+FD46: 09          FCB $09
+FD47: F5          FCB $F5
+FD48: 09          FCB $09
+FD49: 66          FCB $66
+FD4A: 96          FCB $96
+FD4B: 09          FCB $09
+FD4C: 73          FCB $73
+FD4D: B5          FCB $B5
+FD4E: 09          FCB $09
+FD4F: 65          FCB $65
+FD50: 96          FCB $96
+FD51: 09          FCB $09
+FD52: 65          FCB $65
+FD53: A4          FCB $A4
+FD54: 13          FCB $13
+FD55: 6B          FCB $6B
+FD56: 01          FCB $01
+FD57: 95          FCB $95
+FD58: 61          FCB $61
+FD59: 29          FCB $29
+FD5A: A4          FCB $A4
+FD5B: 77          FCB $77
+FD5C: 37          FCB $37
+FD5D: 07          FCB $07
+FD5E: 07          FCB $07
+FD5F: 01          FCB $01
+FD60: 95          FCB $95
+FD61: 0E          FCB $0E
+FD62: 69          FCB $69
+FD63: 2F          FCB $2F
+FD64: AE          FCB $AE
+FD65: 65          FCB $65
+FD66: 0F          FCB $0F
+FD67: 8B          FCB $8B
+FD68: 0A          FCB $0A
+FD69: FF          FCB $FF
+FD6A: 13          FCB $13
+FD6B: EB          FCB $EB
+FD6C: 09          FCB $09
+FD6D: 10          FCB $10
+FD6E: 0A          FCB $0A
+FD6F: 25          FCB $25
+FD70: FF          FCB $FF
+FD71: 13          FCB $13
+FD72: EB          FCB $EB
+FD73: 09          FCB $09
+FD74: 11          FCB $11
+FD75: 14          FCB $14
+FD76: FF          FCB $FF
+FD77: 13          FCB $13
+FD78: EB          FCB $EB
+FD79: 35          FCB $35
+FD7A: FF          FCB $FF
+FD7B: 13          FCB $13
+FD7C: F7          FCB $F7
+FD7D: 13          FCB $13
+FD7E: 10          FCB $10
+FD7F: 09          FCB $09
+FD80: FF          FCB $FF
+FD81: 13          FCB $13
+FD82: EB          FCB $EB
+FD83: 13          FCB $13
+FD84: 63          FCB $63
+FD85: A8          FCB $A8
+FD86: 77          FCB $77
+FD87: 37          FCB $37
+FD88: 02          FCB $02
+FD89: A9          FCB $A9
+FD8A: FF          FCB $FF
+FD8B: 23          FCB $23
+FD8C: 0F          FCB $0F
+FD8D: FF          FCB $FF
+FD8E: 09          FCB $09
+FD8F: ED          FCB $ED
+FD90: 6B          FCB $6B
+FD91: 90          FCB $90
+FD92: 09          FCB $09
+FD93: FF          FCB $FF
+FD94: 2E          FCB $2E
+FD95: 07          FCB $07
+FD96: EB          FCB $EB
+FD97: FF          FCB $FF
+FD98: F7          FCB $F7
+FD99: FF          FCB $FF
+FD9A: 07          FCB $07
+FD9B: 33          FCB $33
+FD9C: 42          FCB $42
+FD9D: 91          FCB $91
+FD9E: 63          FCB $63
+FD9F: A8          FCB $A8
+FDA0: 42          FCB $42
+FDA1: B2          FCB $B2
+FDA2: 13          FCB $13
+FDA3: FF          FCB $FF
+FDA4: 13          FCB $13
+FDA5: 42          FCB $42
+FDA6: 0D          FCB $0D
+FDA7: 93          FCB $93
+FDA8: 13          FCB $13
+FDA9: 68          FCB $68
+FDAA: 25          FCB $25
+FDAB: 80          FCB $80
+FDAC: 09          FCB $09
+FDAD: 52          FCB $52
+FDAE: 93          FCB $93
+FDAF: 13          FCB $13
+FDB0: 68          FCB $68
+FDB1: A5          FCB $A5
+FDB2: 13          FCB $13
+FDB3: 52          FCB $52
+FDB4: 8F          FCB $8F
+FDB5: EF          FCB $EF
+FDB6: 13          FCB $13
+FDB7: 42          FCB $42
+FDB8: 0D          FCB $0D
+FDB9: 9F          FCB $9F
+FDBA: 6F          FCB $6F
+FDBB: 24          FCB $24
+FDBC: 21          FCB $21
+FDBD: B9          FCB $B9
+FDBE: 42          FCB $42
+FDBF: 0D          FCB $0D
+FDC0: 1F          FCB $1F
+FDC1: 21          FCB $21
+FDC2: 94          FCB $94
+FDC3: 68          FCB $68
+FDC4: A1          FCB $A1
+FDC5: 0E          FCB $0E
+FDC6: 13          FCB $13
+FDC7: 52          FCB $52
+FDC8: 9A          FCB $9A
+FDC9: 13          FCB $13
+FDCA: 68          FCB $68
+FDCB: 29          FCB $29
+FDCC: B3          FCB $B3
+FDCD: 13          FCB $13
+FDCE: 52          FCB $52
+FDCF: 0C          FCB $0C
+FDD0: 37          FCB $37
+FDD1: B7          FCB $B7
+FDD2: 13          FCB $13
+FDD3: 68          FCB $68
+FDD4: 25          FCB $25
+FDD5: B9          FCB $B9
+FDD6: 52          FCB $52
+FDD7: 94          FCB $94
+FDD8: 13          FCB $13
+FDD9: 68          FCB $68
+FDDA: 25          FCB $25
+FDDB: 32          FCB $32
+FDDC: A5          FCB $A5
+FDDD: 52          FCB $52
+FDDE: AF          FCB $AF
+FDDF: 68          FCB $68
+FDE0: 25          FCB $25
+FDE1: B2          FCB $B2
+FDE2: 76          FCB $76
+FDE3: B3          FCB $B3
+FDE4: 68          FCB $68
+FDE5: 25          FCB $25
+FDE6: 29          FCB $29
+FDE7: B2          FCB $B2
+FDE8: 52          FCB $52
+FDE9: AF          FCB $AF
+FDEA: 13          FCB $13
+FDEB: 68          FCB $68
+FDEC: 25          FCB $25
+FDED: AD          FCB $AD
+FDEE: 10          FCB $10
+FDEF: 52          FCB $52
+FDF0: 07          FCB $07
+FDF1: 90          FCB $90
+FDF2: 68          FCB $68
+FDF3: 25          FCB $25
+FDF4: 33          FCB $33
+FDF5: A5          FCB $A5
+FDF6: 13          FCB $13
+FDF7: 52          FCB $52
+FDF8: 13          FCB $13
+FDF9: AB          FCB $AB
+FDFA: 13          FCB $13
+FDFB: 68          FCB $68
+FDFC: 25          FCB $25
+FDFD: AE          FCB $AE
+FDFE: 52          FCB $52
+FDFF: 07          FCB $07
+FE00: 8B          FCB $8B
+FE01: 68          FCB $68
+FE02: 32          FCB $32
+FE03: 2F          FCB $2F
+FE04: 35          FCB $35
+FE05: 27          FCB $27
+FE06: A8          FCB $A8
+FE07: 13          FCB $13
+FE08: 5D          FCB $5D
+FE09: 27          FCB $27
+FE0A: 9F          FCB $9F
+FE0B: 68          FCB $68
+FE0C: 2F          FCB $2F
+FE0D: 33          FCB $33
+FE0E: A5          FCB $A5
+FE0F: 52          FCB $52
+FE10: 35          FCB $35
+FE11: B7          FCB $B7
+FE12: 68          FCB $68
+FE13: 2F          FCB $2F
+FE14: 35          FCB $35
+FE15: 27          FCB $27
+FE16: A8          FCB $A8
+FE17: 13          FCB $13
+FE18: 52          FCB $52
+FE19: B5          FCB $B5
+FE1A: 13          FCB $13
+FE1B: 68          FCB $68
+FE1C: 35          FCB $35
+FE1D: B3          FCB $B3
+FE1E: 52          FCB $52
+FE1F: 0F          FCB $0F
+FE20: 37          FCB $37
+FE21: B7          FCB $B7
+FE22: 68          FCB $68
+FE23: A5          FCB $A5
+FE24: 13          FCB $13
+FE25: D2          FCB $D2
+FE26: E8          FCB $E8
+FE27: DD          FCB $DD
+FE28: 09          FCB $09
+FE29: 10          FCB $10
+FE2A: 65          FCB $65
+FE2B: A4          FCB $A4
+FE2C: 13          FCB $13
+FE2D: 42          FCB $42
+FE2E: 0D          FCB $0D
+FE2F: 0C          FCB $0C
+FE30: 01          FCB $01
+FE31: 95          FCB $95
+FE32: 33          FCB $33
+FE33: E9          FCB $E9
+FE34: 09          FCB $09
+FE35: 2E          FCB $2E
+FE36: 42          FCB $42
+FE37: B2          FCB $B2
+FE38: E9          FCB $E9
+FE39: 09          FCB $09
+FE3A: E5          FCB $E5
+FE3B: 75          FCB $75
+FE3C: B2          FCB $B2
+FE3D: 09          FCB $09
+FE3E: 42          FCB $42
+FE3F: 32          FCB $32
+FE40: B3          FCB $B3
+FE41: F5          FCB $F5
+FE42: 21          FCB $21
+FE43: 42          FCB $42
+FE44: 32          FCB $32
+FE45: 96          FCB $96
+FE46: 13          FCB $13
+FE47: 77          FCB $77
+FE48: AF          FCB $AF
+FE49: 42          FCB $42
+FE4A: 0D          FCB $0D
+FE4B: 9F          FCB $9F
+FE4C: FF          FCB $FF
+FE4D: 34          FCB $34
+FE4E: FF          FCB $FF
+FE4F: FF          FCB $FF
+FE50: 33          FCB $33
+FE51: 42          FCB $42
+FE52: 91          FCB $91
+FE53: FF          FCB $FF
+FE54: 42          FCB $42
+FE55: 8D          FCB $8D
+FE56: 13          FCB $13
+FE57: FF          FCB $FF
+FE58: 13          FCB $13
+FE59: 71          FCB $71
+FE5A: 9F          FCB $9F
+FE5B: EE          FCB $EE
+FE5C: 29          FCB $29
+FE5D: 59          FCB $59
+FE5E: 16          FCB $16
+FE5F: 8B          FCB $8B
+FE60: 13          FCB $13
+FE61: EE          FCB $EE
+FE62: 4F          FCB $4F
+FE63: 8B          FCB $8B
+FE64: 13          FCB $13
+FE65: 70          FCB $70
+FE66: AF          FCB $AF
+FE67: 4F          FCB $4F
+FE68: 02          FCB $02
+FE69: 09          FCB $09
+FE6A: 98          FCB $98
+FE6B: 0D          FCB $0D
+FE6C: F2          FCB $F2
+FE6D: 09          FCB $09
+FE6E: 56          FCB $56
+FE6F: B3          FCB $B3
+FE70: F2          FCB $F2
+FE71: 09          FCB $09
+FE72: 71          FCB $71
+FE73: 16          FCB $16
+FE74: B3          FCB $B3
+FE75: F2          FCB $F2
+FE76: 11          FCB $11
+FE77: F3          FCB $F3
+FE78: FF          FCB $FF
+FE79: 0E          FCB $0E
+FE7A: 13          FCB $13
+FE7B: CF          FCB $CF
+FE7C: FF          FCB $FF
+FE7D: 0E          FCB $0E
+FE7E: 0E          FCB $0E
+FE7F: CF          FCB $CF
+FE80: F9          FCB $F9
+FE81: C6          FCB $C6
+FE82: 13          FCB $13
+FE83: 27          FCB $27
+FE84: FF          FCB $FF
+FE85: 09          FCB $09
+FE86: FF          FCB $FF
+FE87: 27          FCB $27
+FE88: FF          FCB $FF
+FE89: 0B          FCB $0B
+FE8A: FF          FCB $FF
+FE8B: 27          FCB $27
+FE8C: FF          FCB $FF
+FE8D: 09          FCB $09
+FE8E: EE          FCB $EE
+FE8F: 0D          FCB $0D
+FE90: FF          FCB $FF
+FE91: DF          FCB $DF
+FE92: FF          FCB $FF
+FE93: 71          FCB $71
+FE94: 96          FCB $96
+FE95: 13          FCB $13
+FE96: FF          FCB $FF
+FE97: 13          FCB $13
+FE98: 63          FCB $63
+FE99: 93          FCB $93
+FE9A: 69          FCB $69
+FE9B: 25          FCB $25
+FE9C: B7          FCB $B7
+FE9D: 63          FCB $63
+FE9E: 31          FCB $31
+FE9F: 9F          FCB $9F
+FEA0: FF          FCB $FF
+FEA1: E3          FCB $E3
+FEA2: 13          FCB $13
+FEA3: FF          FCB $FF
+FEA4: 13          FCB $13
+FEA5: 41          FCB $41
+FEA6: 21          FCB $21
+FEA7: 0F          FCB $0F
+FEA8: 01          FCB $01
+FEA9: 3F          FCB $3F
+FEAA: 3E          FCB $3E
+FEAB: 31          FCB $31
+FEAC: 96          FCB $96
+FEAD: 13          FCB $13
+FEAE: 65          FCB $65
+FEAF: 32          FCB $32
+FEB0: A5          FCB $A5
+FEB1: 6E          FCB $6E
+FEB2: B4          FCB $B4
+FEB3: 13          FCB $13
+FEB4: 61          FCB $61
+FEB5: B3          FCB $B3
+FEB6: 13          FCB $13
+FEB7: 6E          FCB $6E
+FEB8: 0F          FCB $0F
+FEB9: AB          FCB $AB
+FEBA: E1          FCB $E1
+FEBB: 33          FCB $33
+FEBC: 6E          FCB $6E
+FEBD: 98          FCB $98
+FEBE: E1          FCB $E1
+FEBF: 34          FCB $34
+FEC0: 6E          FCB $6E
+FEC1: 97          FCB $97
+FEC2: 61          FCB $61
+FEC3: AE          FCB $AE
+FEC4: 6E          FCB $6E
+FEC5: 18          FCB $18
+FEC6: 8B          FCB $8B
+FEC7: 68          FCB $68
+FEC8: 21          FCB $21
+FEC9: B4          FCB $B4
+FECA: 70          FCB $70
+FECB: 18          FCB $18
+FECC: 02          FCB $02
+FECD: 8D          FCB $8D
+FECE: E8          FCB $E8
+FECF: 2F          FCB $2F
+FED0: 11          FCB $11
+FED1: F9          FCB $F9
+FED2: 68          FCB $68
+FED3: AF          FCB $AF
+FED4: 79          FCB $79
+FED5: 9F          FCB $9F
+FED6: EF          FCB $EF
+FED7: 2D          FCB $2D
+FED8: 6E          FCB $6E
+FED9: 8F          FCB $8F
+FEDA: E8          FCB $E8
+FEDB: F0          FCB $F0
+FEDC: 61          FCB $61
+FEDD: B2          FCB $B2
+FEDE: 6E          FCB $6E
+FEDF: BA          FCB $BA
+FEE0: 6F          FCB $6F
+FEE1: B2          FCB $B2
+FEE2: 0E          FCB $0E
+FEE3: 6E          FCB $6E
+FEE4: B3          FCB $B3
+FEE5: F2          FCB $F2
+FEE6: CE          FCB $CE
+FEE7: FF          FCB $FF
+FEE8: EE          FCB $EE
+FEE9: 13          FCB $13
+FEEA: FF          FCB $FF
+FEEB: 13          FCB $13
+FEEC: 47          FCB $47
+FEED: 02          FCB $02
+FEEE: 29          FCB $29
+FEEF: B7          FCB $B7
+FEF0: 13          FCB $13
+FEF1: FF          FCB $FF
+FEF2: EB          FCB $EB
+FEF3: FF          FCB $FF
+FEF4: 42          FCB $42
+FEF5: 29          FCB $29
+FEF6: B7          FCB $B7
+FEF7: 6F          FCB $6F
+FEF8: 35          FCB $35
+FEF9: B2          FCB $B2
+FEFA: 59          FCB $59
+FEFB: BA          FCB $BA
+FEFC: 13          FCB $13
+FEFD: FF          FCB $FF
+FEFE: 13          FCB $13
+FEFF: 6E          FCB $6E
+FF00: 86          FCB $86
+FF01: 6F          FCB $6F
+FF02: 35          FCB $35
+FF03: 2E          FCB $2E
+FF04: A7          FCB $A7
+FF05: 59          FCB $59
+FF06: 0F          FCB $0F
+FF07: AC          FCB $AC
+FF08: 13          FCB $13
+FF09: 6F          FCB $6F
+FF0A: B5          FCB $B5
+FF0B: 59          FCB $59
+FF0C: 9F          FCB $9F
+FF0D: 65          FCB $65
+FF0E: 21          FCB $21
+FF0F: B2          FCB $B2
+FF10: 10          FCB $10
+FF11: 59          FCB $59
+FF12: BC          FCB $BC
+FF13: 13          FCB $13
+FF14: 65          FCB $65
+FF15: B3          FCB $B3
+FF16: 59          FCB $59
+FF17: 07          FCB $07
+FF18: 37          FCB $37
+FF19: B7          FCB $B7
+FF1A: 13          FCB $13
+FF1B: FF          FCB $FF
+FF1C: D9          FCB $D9
+FF1D: 09          FCB $09
+FF1E: 11          FCB $11
+FF1F: FF          FCB $FF
+FF20: 13          FCB $13
+FF21: D3          FCB $D3
+FF22: 09          FCB $09
+FF23: 11          FCB $11
+FF24: FF          FCB $FF
+FF25: 29          FCB $29
+FF26: D3          FCB $D3
+FF27: 13          FCB $13
+FF28: 10          FCB $10
+FF29: FF          FCB $FF
+FF2A: 13          FCB $13
+FF2B: C6          FCB $C6
+FF2C: 13          FCB $13
+FF2D: 10          FCB $10
+FF2E: FF          FCB $FF
+FF2F: 09          FCB $09
+FF30: C6          FCB $C6
+FF31: 13          FCB $13
+FF32: 10          FCB $10
+FF33: FF          FCB $FF
+FF34: 0E          FCB $0E
+FF35: 0F          FCB $0F
+FF36: 10          FCB $10
+FF37: 09          FCB $09
+FF38: CC          FCB $CC
+FF39: 13          FCB $13
+FF3A: 10          FCB $10
+FF3B: FF          FCB $FF
+FF3C: 0E          FCB $0E
+FF3D: 09          FCB $09
+FF3E: C6          FCB $C6
+FF3F: FF          FCB $FF
+FF40: CC          FCB $CC
+FF41: 13          FCB $13
+FF42: FF          FCB $FF
+FF43: 13          FCB $13
+FF44: 6B          FCB $6B
+FF45: 93          FCB $93
+FF46: FF          FCB $FF
+FF47: 3A          FCB $3A
+FF48: FF          FCB $FF
+FF49: FF          FCB $FF
+FF4A: EB          FCB $EB
+FF4B: D0          FCB $D0
+FF4C: 6B          FCB $6B
+FF4D: 3C          FCB $3C
+FF4E: B5          FCB $B5
+FF4F: D1          FCB $D1
+FF50: 6E          FCB $6E
+FF51: 0F          FCB $0F
+FF52: 8B          FCB $8B
+FF53: D2          FCB $D2
+FF54: 42          FCB $42
+FF55: 0D          FCB $0D
+FF56: 9F          FCB $9F
+FF57: D3          FCB $D3
+FF58: 5D          FCB $5D
+FF59: 0E          FCB $0E
+FF5A: 93          FCB $93
+FF5B: D4          FCB $D4
+FF5C: 68          FCB $68
+FF5D: BA          FCB $BA
+FF5E: D5          FCB $D5
+FF5F: 68          FCB $68
+FF60: 06          FCB $06
+FF61: A3          FCB $A3
+FF62: D6          FCB $D6
+FF63: 77          FCB $77
+FF64: 37          FCB $37
+FF65: 0C          FCB $0C
+FF66: 02          FCB $02
+FF67: 29          FCB $29
+FF68: B7          FCB $B7
+FF69: D7          FCB $D7
+FF6A: 77          FCB $77
+FF6B: 37          FCB $37
+FF6C: 07          FCB $07
+FF6D: 23          FCB $23
+FF6E: 0C          FCB $0C
+FF6F: 8B          FCB $8B
+FF70: D8          FCB $D8
+FF71: 54          FCB $54
+FF72: 02          FCB $02
+FF73: 8D          FCB $8D
+FF74: D9          FCB $D9
+FF75: 4B          FCB $4B
+FF76: 06          FCB $06
+FF77: 8B          FCB $8B
+FF78: FE          FCB $FE
+FF79: F8          FCB $F8
+FF7A: 11          FCB $11
+FF7B: F8          FCB $F8
+FF7C: 3E          FCB $3E
+FF7D: F8          FCB $F8
+FF7E: CE          FCB $CE
+FF7F: F9          FCB $F9
+FF80: 18          FCB $18
+FF81: F9          FCB $F9
+FF82: 51          FCB $51
+FF83: F9          FCB $F9
+FF84: A5          FCB $A5
+FF85: FA          FCB $FA
+FF86: 5B          FCB $5B
+FF87: FA          FCB $FA
+FF88: 6D          FCB $6D
+FF89: FA          FCB $FA
+FF8A: B1          FCB $B1
+FF8B: FA          FCB $FA
+FF8C: E0          FCB $E0
+FF8D: FB          FCB $FB
+FF8E: 4C          FCB $4C
+FF8F: FB          FCB $FB
+FF90: 55          FCB $55
+FF91: FB          FCB $FB
+FF92: 66          FCB $66
+FF93: FB          FCB $FB
+FF94: 84          FCB $84
+FF95: FB          FCB $FB
+FF96: 96          FCB $96
+FF97: FB          FCB $FB
+FF98: DC          FCB $DC
+FF99: FC          FCB $FC
+FF9A: D4          FCB $D4
+FF9B: FD          FCB $FD
+FF9C: 00          FCB $00
+FF9D: FD          FCB $FD
+FF9E: 19          FCB $19
+FF9F: FD          FCB $FD
+FFA0: 2B          FCB $2B
+FFA1: FD          FCB $FD
+FFA2: 99          FCB $99
+FFA3: FE          FCB $FE
+FFA4: 56          FCB $56
+FFA5: FE          FCB $FE
+FFA6: 95          FCB $95
+FFA7: FE          FCB $FE
+FFA8: A2          FCB $A2
+FFA9: FE          FCB $FE
+FFAA: E9          FCB $E9
+FFAB: FE          FCB $FE
+FFAC: F7          FCB $F7
+FFAD: FF          FCB $FF
+FFAE: 41          FCB $41
+FFAF: FF          FCB $FF
+FFB0: 4B          FCB $4B
+FFB1: 00          FCB $00
+FFB2: 00          FCB $00
+FFB3: 00          FCB $00
+FFB4: 00          FCB $00
+FFB5: 00          FCB $00
+FFB6: 00          FCB $00
+FFB7: 00          FCB $00
+FFB8: 00          FCB $00
+FFB9: 00          FCB $00
+FFBA: 00          FCB $00
+FFBB: 00          FCB $00
+FFBC: 00          FCB $00
+FFBD: 00          FCB $00
+FFBE: 00          FCB $00
+FFBF: 00          FCB $00
+FFC0: 00          FCB $00
+FFC1: 00          FCB $00
+FFC2: 00          FCB $00
+FFC3: 00          FCB $00
+FFC4: 00          FCB $00
+FFC5: 00          FCB $00
+FFC6: 00          FCB $00
+FFC7: 00          FCB $00
+FFC8: 00          FCB $00
+FFC9: 00          FCB $00
+FFCA: 00          FCB $00
+FFCB: 00          FCB $00
+FFCC: 00          FCB $00
+FFCD: 00          FCB $00
+FFCE: 00          FCB $00
+FFCF: 00          FCB $00
+
+;**************************
+; Vectors
+;**************************
+FFD0: 00 00     ; TRAP_23
+FFD2: 00 00     ; TRAP_22
+FFD4: 00 00     ; TRAP_21
+FFD6: 00 00     ; TRAP_20
+FFD8: F7 EB     ; TRAP_19
+FFDA: F7 C9     ; TRAP_18
+FFDC: F7 A6     ; TRAP_17
+FFDE: F5 43     ; TRAP_16
+FFE0: F6 07     ; TRAP_15
+FFE2: F4 81     ; TRAP_14
+FFE4: F4 C1     ; TRAP_13
+FFE6: F2 6A     ; TRAP_12
+FFE8: F7 E0     ; TRAP_11
+FFEA: F7 7C     ; TRAP_10
+FFEC: F5 BD     ; TRAP_9
+FFEE: F2 06     ; TRAP_8
+FFF0: F2 02     ; TRAP_7
+FFF2: F1 0B     ; TRAP_6
+FFF4: F2 66     ; TRAP_5
+FFF6: F1 07     ; TRAP_4
+FFF8: F0 12     ; INT3
+FFFA: F0 33     ; INT2
+FFFC: F2 1C     ; INT1
+FFFE: F0 00     ; RESET (INT0)

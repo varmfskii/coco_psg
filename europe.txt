@@ -1,0 +1,120 @@
+     00C0             (       europe.asm):00001         PSG:    equ $c0                 ; psg4
+                      (       europe.asm):00002                 
+     FF60             (       europe.asm):00003         a4port: equ $ff60               ; data
+     FF62             (       europe.asm):00004         b4port: equ a4port+2            ; select
+                      (       europe.asm):00005                 ifdef PSG
+     0003             (       europe.asm):00006         mask:   equ $03 * PSG
+                      (       europe.asm):00007                 else
+0000                  (       europe.asm):00008         mask:   equ $ff
+                      (       europe.asm):00009                 endif
+                      (       europe.asm):00010         
+                      (       europe.asm):00011         ;;; 
+                      (       europe.asm):00012         ;;; A program to dimulate a europe siren sound
+                      (       europe.asm):00013         ;;;
+                      (       europe.asm):00014                 org $6000
+                      (       europe.asm):00015         ;;;
+                      (       europe.asm):00016         ;;; Initialisze PIA A & PIA B
+                      (       europe.asm):00017         ;;;
+6000                  (       europe.asm):00018         start:
+6000 8600             (       europe.asm):00019                 lda #$00                ; data direction mode
+6002 B7FF61           (       europe.asm):00020                 sta a4port+1
+6005 B7FF63           (       europe.asm):00021                 sta b4port+1
+6008 86FF             (       europe.asm):00022                 lda #$ff                ; all output
+600A B7FF60           (       europe.asm):00023                 sta a4port
+600D B7FF62           (       europe.asm):00024                 sta b4port
+6010 8604             (       europe.asm):00025                 lda #$04                ; data mode
+6012 B7FF61           (       europe.asm):00026                 sta a4port+1
+6015 B7FF63           (       europe.asm):00027                 sta b4port+1
+6018 8600             (       europe.asm):00028                 lda #$00
+601A B7FF60           (       europe.asm):00029                 sta a4port
+601D B7FF62           (       europe.asm):00030                 sta b4port              ; select no pia
+6020 7F6085           (       europe.asm):00031                 clr count
+                      (       europe.asm):00032         ;;;
+                      (       europe.asm):00033         ;;; CoCo initialization
+                      (       europe.asm):00034         ;;;
+6023 863D             (       europe.asm):00035                 lda #$3d
+6025 B7FF03           (       europe.asm):00036                 sta $ff03
+6028 863F             (       europe.asm):00037                 lda #$3f
+602A B7FF23           (       europe.asm):00038                 sta $ff23
+                      (       europe.asm):00039         ;;;
+                      (       europe.asm):00040         ;;;  Globabl initialization
+                      (       europe.asm):00041         ;;;
+602D 8607             (       europe.asm):00042                 lda #7
+602F C6FE             (       europe.asm):00043                 ldb #$fe                ; IO/noise or chan "A" on
+6031 8D33             (       europe.asm):00044                 bsr storit
+6033 8608             (       europe.asm):00045                 lda #8
+6035 C60F             (       europe.asm):00046                 ldb #$0f                ; volume max
+6037 8D2D             (       europe.asm):00047                 bsr storit
+                      (       europe.asm):00048         ;;;
+                      (       europe.asm):00049         ;;; First tone 440 Hz
+                      (       europe.asm):00050         ;;;
+6039                  (       europe.asm):00051         europe:
+6039 8600             (       europe.asm):00052                 lda #0                  ; reg address
+                      (       europe.asm):00053         ;;;     ldb #127                ; chan A fine
+603B C680             (       europe.asm):00054                 ldb #128
+603D 8D27             (       europe.asm):00055                 bsr storit
+603F 8601             (       europe.asm):00056                 lda #1
+6041 C600             (       europe.asm):00057                 ldb #0                  ; chan A coarse
+6043 8D21             (       europe.asm):00058                 bsr storit
+                      (       europe.asm):00059         ;;;
+                      (       europe.asm):00060         ;;; wait 350 ms
+                      (       europe.asm):00061         ;;;
+6045 8D36             (       europe.asm):00062                 bsr wait
+                      (       europe.asm):00063         ;;;
+                      (       europe.asm):00064         ;;; second tone 187 Hz
+                      (       europe.asm):00065         ;;;
+6047 8600             (       europe.asm):00066                 lda #0
+                      (       europe.asm):00067         ;;;     ldb #43
+6049 C660             (       europe.asm):00068                 ldb #96
+604B 8D19             (       europe.asm):00069                 bsr storit
+604D 8601             (       europe.asm):00070                 lda #1
+                      (       europe.asm):00071         ;;;     ldb #1
+604F C600             (       europe.asm):00072                 ldb #0
+6051 8D13             (       europe.asm):00073                 bsr storit
+                      (       europe.asm):00074         ;;;
+                      (       europe.asm):00075         ;;; wait 350 ms
+                      (       europe.asm):00076         ;;;
+6053 8D28             (       europe.asm):00077                 bsr wait
+                      (       europe.asm):00078         ;;;
+                      (       europe.asm):00079         ;;; repeat
+                      (       europe.asm):00080         ;;;
+6055 7C6085           (       europe.asm):00081                 inc count
+6058 B66085           (       europe.asm):00082                 lda count
+605B 8103             (       europe.asm):00083                 cmpa #3
+605D 26DA             (       europe.asm):00084                 bne europe              ; repeat it
+605F 8608             (       europe.asm):00085                 lda #8
+6061 C600             (       europe.asm):00086                 ldb #0                  ; silence
+6063 8D01             (       europe.asm):00087                 bsr storit
+6065 39               (       europe.asm):00088                 rts                     ; return
+                      (       europe.asm):00089         ;;;
+                      (       europe.asm):00090         ;;; This routine assumes the register address
+                      (       europe.asm):00091         ;;; of the AT-89XX is in the accumulator "A" and the
+                      (       europe.asm):00092         ;;; data to be stored is in the accumulator "B".
+                      (       europe.asm):00093         ;;;
+                      (       europe.asm):00094         ;;;         *** PSG 4 ***
+                      (       europe.asm):00095         ;;;
+6066                  (       europe.asm):00096         storit:
+6066 B7FF60           (       europe.asm):00097                 sta a4port              ; store reg. addr.
+6069 86FF             (       europe.asm):00098                 lda #$ff & mask
+606B B7FF62           (       europe.asm):00099                 sta b4port              ; strobe reg. latch
+606E 7FFF62           (       europe.asm):00100                 clr b4port              ; strobe inactive
+6071 F7FF60           (       europe.asm):00101                 stb a4port              ; store data
+6074 86AA             (       europe.asm):00102                 lda #$aa & mask         ; strobe data
+6076 B7FF62           (       europe.asm):00103                 sta b4port
+6079 7FFF62           (       europe.asm):00104                 clr b4port              ; strobe inactive
+607C 39               (       europe.asm):00105                 rts
+                      (       europe.asm):00106         ;;;
+                      (       europe.asm):00107         ;;; This routine will waste 350 ms
+                      (       europe.asm):00108         ;;;
+607D                  (       europe.asm):00109         wait:
+607D 8EA000           (       europe.asm):00110                 ldx #$a000
+6080                  (       europe.asm):00111         more:
+6080 301F             (       europe.asm):00112                 leax -1,x
+6082 26FC             (       europe.asm):00113                 bne more
+6084 39               (       europe.asm):00114                 rts
+                      (       europe.asm):00115         ;;;
+                      (       europe.asm):00116         ;;;  data area
+                      (       europe.asm):00117         ;;;
+6085                  (       europe.asm):00118         count:  rmb 1
+                      (       europe.asm):00119         ;;;
+                      (       europe.asm):00120                 end start
