@@ -16,18 +16,18 @@ cls:
 
 ;;; init voices
 	lda #1
-	sta notdone
-	ldx #voices
-	ldy #scores
+	sta not_done
+	ldu #voices
 loop@:
-	ldd ,y++
+	ldx ,u++
+	beq exit@
+	ldd ,u++
 	std scr,x
 	lda #1
 	sta cpl,x
 	sta dly,x
-	leax siz,x
-	cmpx #voiceend
-	bne loop@
+	bra loop@
+exit@:
 	
 ;;; setup irq routine
 	orcc #$50		; disable interrupts
@@ -91,7 +91,7 @@ l@:
 	bne l@
 
 	;; check if music is finished
-	ldb notdone
+	ldb not_done
 	bne mainlp
 	lbsr s12_term
 	rts
@@ -114,33 +114,18 @@ interrupt:
 	eora #$08
 	sta pia1+2
 
-	ldx #voices
-l1@:
-	ldy scn,x
-	leay 15,y
-	clrb
-l2@:
-	lda b,x
-	sta b,y
-	incb
-	cmpb #siz
-	bne l2@
-	leax siz,x
-	cmpx #voiceend
-	bne l1@
-
-	clr notdone
-	ldx #voices
-loop@:
+	clr not_done
+	ldu #voices
+next_voice:
+	ldx ,u
+	beq exit@
+	leau 4,u
 	dec dly,x
-	beq next@		; new note
-continue:	
-	inc notdone
-next_voice:	
-	leax siz,x
-	cmpx #voiceend
-	bne loop@
-	lda notdone
+	beq next_note		; new note
+	inc not_done
+	bra next_voice
+exit@:
+	lda not_done
 	bne skip
 	;; tear down interrupt
 	lda old
@@ -158,7 +143,7 @@ skip:
 	sta pia1+2
 	rti
 	;; next note
-next@:
+next_note:
 	ldy scr,x
 	lda ,y+
 	beq done@		; no more notes
@@ -173,7 +158,8 @@ next@:
 	ldb ,y+
 	jsr [,x]
 	sty scr,x
-	bra continue
+	inc not_done
+	bra next_voice
 	;; no more notes
 done@:
 	clrb
@@ -185,14 +171,19 @@ done@:
 	jsr [,x]
 	bra next_voice
 
-notdone:
+not_done:
 	rmb 1
 old:	rmb 5
 
-voices:
+voices:	
+	fdb voice0,score0
+	fdb voice1,score1
+	fdb voice2,score2
+	fdb 0
+
 voice0:
 	fdb s12_ctl		; routine
-	fdb screen+32*2+2
+	fdb screen+32*2+9
 	fcb ay_a_coarse		; tone coarse
 	fcb ay_a_fine		; tone fine
 	fcb ay_a_amp		; voice amplitude
@@ -201,7 +192,7 @@ voice0:
 	rmb 4
 voice1:
 	fdb s12_ctl		; routine
-	fdb screen+32*3+2
+	fdb screen+32*3+9
 	fcb ay_b_coarse		; tone coarse
 	fcb ay_b_fine		; tone fine
 	fcb ay_b_amp		; voice amplitude
@@ -210,7 +201,7 @@ voice1:
 	rmb 4
 voice2:
 	fdb s12_ctl		; routine
-	fdb screen+32*4+2
+	fdb screen+32*4+9
 	fcb ay_c_coarse		; tone coarse
 	fcb ay_c_fine		; tone fine
 	fcb ay_c_amp		; voice amplitude
@@ -225,25 +216,25 @@ scores:
 	fdb score2
 	
 score0:
-	fdb $3009,428
+	fdb $3009,214
 	fdb $6000,0
-	fdb $3009,428
-	fdb $3009,339
-	fdb $3009,285
+	fdb $3009,214
+	fdb $3009,170
+	fdb $3009,143
 	fdb 0,0
 score1:
 	fdb $3000,0
-	fdb $3009,339
+	fdb $3009,170
 	fdb $3000,0
-	fdb $3009,339
-	fdb $3009,285
-	fdb $3009,226
+	fdb $3009,170
+	fdb $3009,143
+	fdb $3009,113
 	fdb 0,0
 score2:
 	fdb $6000,0
-	fdb $6009,285
-	fdb $3009,226
-	fdb $3009,190
+	fdb $6009,143
+	fdb $3009,113
+	fdb $3009,85
 	fdb 0,0
 
 	end start
