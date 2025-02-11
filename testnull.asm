@@ -16,18 +16,18 @@ cls:
 
 ;;; init voices
 	lda #1
-	sta notdone
-	ldx #voices
-	ldy #scores
+	sta not_done
+	ldu #voices
 loop@:
-	ldd ,y++
+	ldx ,u++
+	beq exit@
+	ldd ,u++
 	std scr,x
 	lda #1
 	sta cpl,x
 	sta dly,x
-	leax siz,x
-	cmpx #voiceend
-	bne loop@
+	bra loop@
+exit@:
 	
 ;;; setup irq routine
 	orcc #$50		; disable interrupts
@@ -91,7 +91,7 @@ l@:
 	bne l@
 
 	;; check if music is finished
-	ldb notdone
+	ldb not_done
 	bne mainlp
 	lbsr null_term
 	rts
@@ -101,11 +101,11 @@ scn:	equ 2
 crs:	equ 4
 fin:	equ 5
 amp:	equ 6
-dly:	equ 7
-srg:	equ 8
-scr:	equ 9
-cpl:	equ 11
-sdt:	equ 12
+srg:	equ 7
+sdt:	equ 8
+dly:	equ 9
+scr:	equ 10
+cpl:	equ 12
 
 interrupt:
 	lda pia0+2		; ack interrupt
@@ -114,18 +114,18 @@ interrupt:
 	eora #$08
 	sta pia1+2
 
-	clr notdone
-	ldx #voices
-loop@:
+	clr not_done
+	ldu #voices
+next_voice:
+	ldx ,u
+	beq exit@
+	leau 4,u
 	dec dly,x
-	beq next@		; new note
-continue:	
-	inc notdone
-next_voice:	
-	leax siz,x
-	cmpx #voiceend
-	bne loop@
-	lda notdone
+	beq next_note		; new note
+	inc not_done
+	bra next_voice
+exit@:
+	lda not_done
 	bne skip
 	;; tear down interrupt
 	lda old
@@ -143,7 +143,7 @@ skip:
 	sta pia1+2
 	rti
 	;; next note
-next@:
+next_note:
 	ldy scr,x
 	lda ,y+
 	beq done@		; no more notes
@@ -158,7 +158,8 @@ next@:
 	ldb ,y+
 	jsr [,x]
 	sty scr,x
-	bra continue
+	inc not_done
+	bra next_voice
 	;; no more notes
 done@:
 	clrb
@@ -170,28 +171,33 @@ done@:
 	jsr [,x]
 	bra next_voice
 
-notdone:
+not_done:
 	rmb 1
 old:	rmb 5
 
 voices:
+	fdb voice0,score0
+	fdb voice1,score1
+	fdb voice2,score2
+	fdb 0
+	
 voice0:
 	fdb null_ctl		; routine
-	fdb screen+32*2+9
+	fdb screen+32*2+9	; screen location
 	fcb ay_a_coarse		; tone coarse
 	fcb ay_a_fine		; tone fine
 	fcb ay_a_amp		; voice amplitude
 	rmb 6
 voice1:
 	fdb null_ctl		; routine
-	fdb screen+32*2+9
+	fdb screen+32*2+9	; screen location
 	fcb ay_b_coarse		; tone coarse
 	fcb ay_b_fine		; tone fine
 	fcb ay_b_amp		; voice amplitude
 	rmb 6
 voice2:
 	fdb null_ctl		; routine
-	fdb screen+32*2+9
+	fdb screen+32*2+9	; screen location
 	fcb ay_c_coarse		; tone coarse
 	fcb ay_c_fine		; tone fine
 	fcb ay_c_amp		; voice amplitude
@@ -204,24 +210,25 @@ scores:
 	fdb score2
 	
 score0:
-	fdb $3000,0
 	fdb $3009,428
-	fdb $3000,0
+	fdb $6000,0
 	fdb $3009,428
-	fdb $3000,0
-	fdb $3009,428
-	fdb $3000,0
-	fdb $3009,428
+	fdb $3009,339
+	fdb $3009,285
 	fdb 0,0
 score1:
-	fdb $6000,0
-	fdb $6009,339
-	fdb $6000,0
-	fdb $6009,339
+	fdb $3000,0
+	fdb $3009,339
+	fdb $3000,0
+	fdb $3009,339
+	fdb $3009,285
+	fdb $3009,225
 	fdb 0,0
 score2:
-	fdb $c000,0
-	fdb $c009,285
+	fdb $6000,0
+	fdb $6009,285
+	fdb $3009,226
+	fdb $3009,190
 	fdb 0,0
 
 	end start
