@@ -1,5 +1,6 @@
 TGTS=europe.bin sayhello.bin scales12.bin scalessc.bin scalessf.bin	\
-	scaletst.bin testnull.bin tests12.bin testssc.bin testssf.bin
+	scaletst.bin testall.bin testnull.bin tests12.bin testssc.bin	\
+	testssf.bin
 BASS=demo.bas scales12.bas scalessc.bas scalessf.bas
 INCS=inc/coco.inc inc/aypsg.inc
 
@@ -24,6 +25,7 @@ PSG.DSK:
 .disk:
 	mkdir .disk
 
+testall.bin: testall.asm $(INCS) s12.asm ssc.asm ssf.asm
 testnull.bin: testnull.asm $(INCS) null.asm
 tests12.bin: tests12.asm $(INCS) s12.asm
 testssc.bin: testssc.asm $(INCS) ssc.asm

@@ -175,6 +175,8 @@ not_done:
 	rmb 1
 old:	rmb 5
 
+nullc:	equ voice0
+	
 voices:
 	fdb voice0,score0
 	fdb voice1,score1

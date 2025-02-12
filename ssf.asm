@@ -10,7 +10,7 @@ ssf_post macro
 ssf_init:
 	lda #$30
 	sta mpi
-	ldx #voice0
+	ldx #ssf_psg
 	lda #13
 	clrb
 loop@:

@@ -1,5 +1,5 @@
 null_init:
-	ldx #voice0
+	ldx #nullc
 	lda #13
 	clrb
 loop@:

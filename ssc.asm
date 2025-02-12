@@ -27,7 +27,7 @@ ssc_init:
 	sta pia1+3
 	bsr ssc_reset
 	ssc_pre
-	ldx #voice0
+	ldx #ssc_psg
 	lda #13
 	clrb
 loop@:
