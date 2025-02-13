@@ -5,6 +5,6 @@ DEBUG:	equ 1
 	org $7000
 	include "soundspeechcart.asm"
 start:
-	include "base.asm"
+	include "base_ay.asm"
 	end start
 	

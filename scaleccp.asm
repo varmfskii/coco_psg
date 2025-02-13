@@ -5,5 +5,5 @@ DEBUG:	equ 1
 	org $7000
 	include "cocopsg.asm"
 start:
-	include "base.asm"
+	include "base_ay.asm"
 	end start

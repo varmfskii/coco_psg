@@ -2,7 +2,7 @@
 
 ##Sound carts implemented
 
-* CoCo PSG - Untested
+* CoCoPSG - tested in MAME
 
 * Sound/Speech Cart
 
@@ -18,7 +18,7 @@
 
 * SAYHELLO.BIN - A speech test for the Sound/Speech Cart
 
-* SCALECCP.BIN - An A major scale on the CoCo PSG - Untested
+* SCALECCP.BIN - An A major scale on the CoCo PSG - tested in MAME
 
 * SCALES12.BAS - An A major scale on the Philharmonic-12
 
@@ -34,7 +34,7 @@
 
 * TESTALL.BIN - A sound test for a system with a Philharmonic-12, a Sound/Speech Cart, and a SuperSpriteFM+
 
-* TESTCCP.BIN - A sound test for the CoCo PSG - Untested
+* TESTCCP.BIN - A sound test for the CoCo PSG - tested in MAME
 
 * TESTS12.BIN - A sound test for the Philharmonic-12
 

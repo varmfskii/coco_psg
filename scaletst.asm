@@ -5,5 +5,5 @@ DEBUG:	equ 1
 	org $7000
 	include "screen.asm"
 start:
-	include "base.asm"
+	include "base_ay.asm"
 	end start

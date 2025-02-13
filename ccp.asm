@@ -1,3 +1,5 @@
+ccp_mem0: equ $ff5a
+ccp_mem1: equ $ff5b
 ccp_crg: equ $ff5d
 ccp_reg: equ $ff5e
 ccp_dat: equ $ff5f
