@@ -1,6 +1,6 @@
-TGTS=europe.bin sayhello.bin scaleccp.bin scales12.bin scalessc.bin	\
-	scalessf.bin scaletst.bin testall.bin testccp.bin		\
-	testnull.bin tests12.bin testssc.bin testssf.bin
+TGTS=europe.bin sayhello.bin scalegmc.bin scaleccp.bin scales12.bin	\
+	scalessc.bin scalessf.bin scaletst.bin testall.bin		\
+	testccp.bin testnull.bin tests12.bin testssc.bin testssf.bin
 BASS=demo.bas scales12.bas scalessc.bas scalessf.bas
 PSG=inc/coco.inc inc/aypsg.inc
 CSG=inc/coco.inc inc/sncsg.inc
@@ -27,7 +27,7 @@ PSG.DSK:
 	mkdir .disk
 
 scaleccp.bin: scaleccp.asm $(PSG) cocopsg.asm base_ay.asm
-scalegmc.bin: scalegmc.asm $(CSG) gamemastercard.asm base_sn.asm
+scalegmc.bin: scalegmc.asm $(CSG)
 scales12.bin: scales12.asm $(PSG) symphony12.asm base_ay.asm
 scalessc.bin: scalessc.asm $(PSG) soundspeechcart.asm base_ay.asm
 scalessf.bin: scalessf.asm $(PSG) superspritefm.asm base_ay.asm

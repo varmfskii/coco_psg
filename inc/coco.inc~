@@ -1,8 +1,0 @@
-	ifndef coco_inc
-coco_inc: equ 1
-irqvec: equ $010c
-screen: equ $0400
-pia0:	equ $ff00
-pia1:	equ $ff20
-mpi:	equ $ff7f
-	endif
