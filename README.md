@@ -4,6 +4,8 @@
 
 * CoCoPSG - tested in MAME
 
+* Game Master Cart - tested in xroar
+
 * Sound/Speech Cart
 
 * SuperSpriteFM+
