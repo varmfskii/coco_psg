@@ -3,7 +3,7 @@ DEBUG:	equ 1
 	include "inc/aypsg.inc"
 	
 	org $7000
-	include "cocopsg.asm"
+	include "symphony12.asm"
 start:
 	include "base_ay.asm"
 	end start

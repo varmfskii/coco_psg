@@ -1,4 +1,4 @@
-TGTS=europe.bin sayhello.bin scalegmc.bin scaleccp.bin scales12.bin	\
+TGTS=europe.bin sayhello.bin scaleccp.bin scales12.bin	\
 	scalessc.bin scalessf.bin scaletst.bin testall.bin		\
 	testccp.bin testnull.bin tests12.bin testssc.bin testssf.bin
 BASS=demo.bas scales12.bas scalessc.bas scalessf.bas
