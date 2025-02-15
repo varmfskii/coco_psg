@@ -20,6 +20,8 @@
 
 * SCALECCP.BIN - An A major scale on the CoCo PSG - tested in MAME
 
+* SCALEGMC.BIN - An A major scale on the Game Master Cart - tested in xroar
+
 * SCALES12.BAS - An A major scale on the Philharmonic-12
 
 * SCALES12.BIN - An A major scale on the Philharmonic-12
@@ -35,6 +37,8 @@
 * TESTALL.BIN - A sound test for a system with a Philharmonic-12, a Sound/Speech Cart, and a SuperSpriteFM+
 
 * TESTCCP.BIN - A sound test for the CoCo PSG - tested in MAME
+
+* TESTGMC.BIN - A sound test for the Game Master Cart - tested in xroar
 
 * TESTS12.BIN - A sound test for the Philharmonic-12
 
