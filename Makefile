@@ -1,7 +1,7 @@
-TGTS=europe.bin sayhello.bin scaleccp.bin scales12.bin scalessc.bin	\
-	scalessf.bin scaletst.bin testall.bin testccp.bin		\
-	testnull.bin tests12.bin testssc.bin testssf.bin scalegmc.bin	\
-	testgmc.bin
+TGTS=europe.bin marys12.bin sayhello.bin scaleccp.bin scales12.bin	\
+	scalessc.bin scalessf.bin scaletst.bin testall.bin		\
+	testccp.bin testnull.bin tests12.bin testssc.bin testssf.bin	\
+	scalegmc.bin testgmc.bin
 BASS=scales12.bas scalessc.bas scalessf.bas
 PSGINC=inc/coco.inc inc/aypsg.inc
 CSGINC=inc/coco.inc inc/sncsg.inc
@@ -27,6 +27,7 @@ SNDCARTS.DSK:
 .disk:
 	mkdir .disk
 
+marys12.bin: marys12.asm $(PSGINC) s12.asm mary_score_s12.asm
 scaleccp.bin: scaleccp.asm $(PSGINC) cocopsg.asm base_ay.asm
 scales12.bin: scales12.asm $(PSGINC) symphony12.asm base_ay.asm
 scalessc.bin: scalessc.asm $(PSGINC) soundspeechcart.asm base_ay.asm
